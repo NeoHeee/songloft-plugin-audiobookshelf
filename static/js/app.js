@@ -93,6 +93,35 @@ async function syncAll() {
   }
 }
 
+async function testSearch() {
+  try {
+    const keyword = $('searchKeyword').value.trim();
+    if (!keyword) throw new Error('请输入测试搜索词');
+    $('searchResult').textContent = '正在搜索…';
+    const result = await apiPost('/api/search/topone', { keyword });
+    $('searchResult').textContent = JSON.stringify(result, null, 2);
+    status(result.code === 0 ? `搜索成功：${result.data?.title || ''}` : result.msg, result.code === 0);
+    await refreshLogs();
+  } catch (e) {
+    $('searchResult').textContent = e.message;
+    status(e.message, false);
+  }
+}
+
+async function refreshLogs() {
+  try {
+    const data = await apiGet('/api/search/logs');
+    $('searchLogs').innerHTML = data.logs.length ? data.logs.map(log =>
+      `<div class="log"><strong>${escapeHtml(log.keyword || '未知搜索')}</strong> · ${log.ok ? '成功' : '失败'}<br>${escapeHtml(log.title || log.message || '')}<br><span class="sub">${escapeHtml(log.at || '')}</span></div>`
+    ).join('') : '<div class="notice">暂无搜索日志</div>';
+  } catch (e) { status(e.message, false); }
+}
+
+async function clearLogs() {
+  await apiPost('/api/search/logs/clear', {});
+  await refreshLogs();
+}
+
 function progressText(progress, duration) {
   if (!progress) return '暂无收听进度';
   if (progress.isFinished) return '已听完';
@@ -116,6 +145,9 @@ function escapeHtml(value) {
 $('save').addEventListener('click', save);
 $('load').addEventListener('click', loadBooks);
 $('syncAll').addEventListener('click', syncAll);
+$('testSearch').addEventListener('click', testSearch);
+$('refreshLogs').addEventListener('click', refreshLogs);
+$('clearLogs').addEventListener('click', clearLogs);
 $('books').addEventListener('click', e => {
   const id = e.target.dataset.import;
   if (id) importBook(id, e.target);
