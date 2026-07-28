@@ -6,6 +6,9 @@ on:
       - agent/first-testable-version
     paths-ignore:
       - dist/**
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -22,7 +25,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Validate package
+      - name: Validate package and embedded version
         run: |
           work_dir="$(mktemp -d)"
           unzip -q dist/audiobookshelf.jsplugin.zip -d "$work_dir"
@@ -34,6 +37,7 @@ jobs:
           path: dist/audiobookshelf.jsplugin.zip
           if-no-files-found: error
       - name: Publish verified package to branch
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -43,6 +47,7 @@ jobs:
             git push
           fi
       - name: Create or update v0.3.0 prerelease
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
