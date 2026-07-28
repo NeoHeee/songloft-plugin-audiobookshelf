@@ -13,7 +13,7 @@
     button{width:auto;background:#6750a4;color:#fff;border:0;font-weight:600;cursor:pointer}button:disabled{opacity:.55}.ghost{background:#ece6f8;color:#3d3158}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
     #books{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}.book{display:flex;gap:12px}.book img{width:72px;height:104px;object-fit:cover;border-radius:9px;background:#ddd}
     .book h3{font-size:15px;margin:2px 0}.book p{font-size:13px;margin:4px 0;opacity:.72}.book .sync-state{color:#6750a4;opacity:1}.status{margin-top:10px;min-height:22px}.error{color:#b3261e}.ok{color:#287a45}
-    .notice{font-size:13px;opacity:.72;margin-top:10px}
+    .notice{font-size:13px;opacity:.72;margin-top:10px}.result{white-space:pre-wrap;background:#1f1b24;color:#eee;border-radius:12px;padding:12px;min-height:44px;overflow:auto}.logs{font-size:12px;max-height:300px;overflow:auto}.log{padding:8px 0;border-bottom:1px solid #766b8822}
     @media(max-width:620px){.grid{grid-template-columns:1fr}header,main{padding:14px}}
   </style>
 </head>
@@ -32,6 +32,13 @@
       <div class="grid"><div><label for="library">有声书书库</label><select id="library"><option value="">请先测试连接</option></select></div></div>
       <div class="actions"><button id="load">加载书库</button><button id="syncAll" class="ghost">增量同步全部</button></div>
       <div class="notice">启用插件后会自动注册为 MIoT 外部搜索源。请在 MIoT 中选择“Audiobookshelf 有声书”，并开启“不入库直接播放”。下方导入与增量同步保留为兼容模式。</div>
+    </section>
+    <section class="card">
+      <h2 style="font-size:18px;margin-top:0">外部搜索测试</h2>
+      <div class="grid"><div><label for="searchKeyword">模拟 MIoT 搜索词</label><input id="searchKeyword" placeholder="例如：继续播放明朝那些事儿 / 第十二集"></div></div>
+      <div class="actions"><button id="testSearch">测试搜索</button><button id="refreshLogs" class="ghost">刷新日志</button><button id="clearLogs" class="ghost">清空日志</button></div>
+      <pre id="searchResult" class="result">尚未测试</pre>
+      <div id="searchLogs" class="logs"></div>
     </section>
     <section id="books"></section>
   </main>
