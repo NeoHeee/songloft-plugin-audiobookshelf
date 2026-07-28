@@ -16,6 +16,96 @@ const router = createRouter();
 const CONFIG_KEY = 'abs_config';
 const SYNC_KEY = 'abs_sync_records_v1';
 const DEFAULT_SERVER_URL = 'http://192.168.1.1:13378';
+const SEARCH_PATH = '/api/search/topone';
+
+function normalizeSearch(value: unknown): string {
+  return String(value || '').toLowerCase()
+    .replace(/[“”"'《》【】\[\]()（）·•:：,，.。!！?？\s_-]+/g, '');
+}
+
+function firstHeader(headers: Record<string, string>, name: string): string {
+  const key = Object.keys(headers || {}).find(k => k.toLowerCase() === name.toLowerCase());
+  return key ? String(headers[key] || '') : '';
+}
+
+function audioFileUrl(config: Config, itemId: string, file: AnyMap, index: number): string {
+  const filePart = file.ino !== undefined && file.ino !== null ? String(file.ino) : String(file.id ?? index);
+  return `${config.serverUrl}/api/items/${encodeURIComponent(itemId)}/file/${encodeURIComponent(filePart)}?token=${encodeURIComponent(config.apiKey)}`;
+}
+
+function chooseAudioFile(item: AnyMap, keyword: string): { file: AnyMap; index: number; offset: number } | null {
+  const files = item.media?.audioFiles || [];
+  if (!files.length) return null;
+  const normalized = normalizeSearch(keyword);
+  const chapterMatch = normalized.match(/(?:第)?(\d+)(?:章|集|回|节|卷|部)/);
+  if (chapterMatch) {
+    const wanted = Number(chapterMatch[1]);
+    const byName = files.findIndex((file: AnyMap) => {
+      const name = normalizeSearch(file.metadata?.filename || file.filename || '');
+      return name.includes(String(wanted)) || name.includes(`第${wanted}`);
+    });
+    if (byName >= 0) return { file: files[byName], index: byName, offset: 0 };
+    if (wanted > 0 && wanted <= files.length) return { file: files[wanted - 1], index: wanted - 1, offset: 0 };
+  }
+  const progress = progressOf(item);
+  const currentTime = Number(progress?.currentTime || 0);
+  const wantsResume = /(继续|接着|上次|续播)/.test(keyword);
+  if (wantsResume && currentTime > 0) {
+    let elapsed = 0;
+    for (let index = 0; index < files.length; index++) {
+      const duration = Number(files[index].duration || 0);
+      if (currentTime < elapsed + duration || index === files.length - 1) {
+        return { file: files[index], index, offset: Math.max(0, currentTime - elapsed) };
+      }
+      elapsed += duration;
+    }
+  }
+  return { file: files[0], index: 0, offset: 0 };
+}
+
+async function searchAudiobook(keyword: string): Promise<AnyMap | null> {
+  const config = await getConfig();
+  const libraryId = String(config.libraryId || '');
+  if (!libraryId) throw new Error('请先在插件设置中选择有声书书库');
+  const result = await absFetch(`/api/libraries/${encodeURIComponent(libraryId)}/search?q=${encodeURIComponent(keyword)}&limit=10`);
+  const candidates = [
+    ...(result.book || []),
+    ...(result.books || []),
+    ...(result.results || []),
+    ...(result.libraryItems || [])
+  ].map((x: AnyMap) => x.libraryItem || x);
+  if (!candidates.length) return null;
+  const needle = normalizeSearch(keyword.replace(/(继续|接着|上次|续播|播放|有声书|第\d+(章|集|回|节|卷|部))/g, ''));
+  candidates.sort((a: AnyMap, b: AnyMap) => {
+    const score = (item: AnyMap) => {
+      const meta = metadataOf(item);
+      const haystack = normalizeSearch([meta.title, meta.authorName, meta.seriesName, meta.narratorName].filter(Boolean).join(''));
+      return (haystack === needle ? 100 : 0) + (haystack.includes(needle) ? 50 : 0);
+    };
+    return score(b) - score(a);
+  });
+  return absFetch(`/api/items/${encodeURIComponent(String(candidates[0].id))}?expanded=1&include=progress`);
+}
+
+async function registerToMiot(): Promise<void> {
+  let attempts = 0;
+  const tryRegister = async () => {
+    attempts += 1;
+    try {
+      if (!songloft.comm || typeof songloft.comm.call !== 'function') return;
+      await songloft.comm.call('miot', 'register-search-provider', {
+        name: 'Audiobookshelf 有声书',
+        searchPath: SEARCH_PATH,
+        icon: ''
+      });
+      songloft.log.info('已注册为 MIoT 外部搜索源');
+    } catch (error) {
+      if (attempts < 5) setTimeout(tryRegister, 3000);
+      else songloft.log.warn('注册 MIoT 搜索源失败: ' + String(error));
+    }
+  };
+  setTimeout(tryRegister, 2000);
+}
 
 function cleanUrl(value: string): string {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -152,6 +242,40 @@ async function importOrSync(itemId: string): Promise<AnyMap> {
   };
 }
 
+router.post(SEARCH_PATH, async (req) => {
+  try {
+    const body = JSON.parse(String(req.body || '{}'));
+    const keyword = String(body.keyword || body.hint?.title || '').trim();
+    if (!keyword) return jsonResponse({ code: 1, msg: '搜索词为空', data: null });
+    const config = await getConfig();
+    const item = await searchAudiobook(keyword);
+    if (!item) return jsonResponse({ code: 1, msg: '未找到匹配的有声书', data: null });
+    const meta = metadataOf(item);
+    const selected = chooseAudioFile(item, keyword);
+    if (!selected) return jsonResponse({ code: 1, msg: '有声书没有可播放的音频文件', data: null });
+    const title = meta.title || '未命名有声书';
+    const author = meta.authorName || meta.authors?.map((x: AnyMap) => x.name).join('、') || '未知作者';
+    const fileName = selected.file.metadata?.filename || selected.file.filename || '';
+    return jsonResponse({
+      code: 0,
+      msg: selected.offset > 0 ? `已定位到上次收听文件（约 ${Math.floor(selected.offset)} 秒）` : '搜索成功',
+      data: {
+        title: (item.media?.audioFiles || []).length > 1 && fileName ? `${title} - ${fileName}` : title,
+        artist: author,
+        album: title,
+        duration: Number(selected.file.duration || item.media?.duration || 0),
+        cover_url: coverUrl(config, String(item.id)),
+        url: audioFileUrl(config, String(item.id), selected.file, selected.index),
+        dedup_key: `audiobookshelf-direct:${fileKey(String(item.id), selected.file, selected.index)}`
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    songloft.log.warn('外部搜索失败: ' + message);
+    return jsonResponse({ code: 2, msg: message, data: null });
+  }
+});
+
 router.get('/api/config', async () => {
   const config = await getConfig(false);
   return jsonResponse({
@@ -271,9 +395,15 @@ router.post('/api/music/url', createMusicUrlHandler({
 }));
 
 async function onInit(): Promise<void> {
-  songloft.log.info('Audiobookshelf plugin v0.2.0 initialized');
+  songloft.log.info('Audiobookshelf plugin v0.3.0 initialized');
+  await registerToMiot();
 }
 async function onDeinit(): Promise<void> {
+  try {
+    if (songloft.comm && typeof songloft.comm.call === 'function') {
+      await songloft.comm.call('miot', 'unregister-search-provider', {});
+    }
+  } catch (_) {}
   songloft.log.info('Audiobookshelf plugin deinitialized');
 }
 async function onHTTPRequest(req: HTTPRequest): Promise<HTTPResponse> {
