@@ -17,10 +17,56 @@ const CONFIG_KEY = 'abs_config';
 const SYNC_KEY = 'abs_sync_records_v1';
 const DEFAULT_SERVER_URL = 'http://192.168.1.1:13378';
 const SEARCH_PATH = '/api/search/topone';
+const SEARCH_LOG_KEY = 'abs_search_logs_v1';
+const MAX_SEARCH_LOGS = 50;
+
+function chineseNumber(value: string): number | null {
+  if (/^\d+$/.test(value)) return Number(value);
+  const digits: Record<string, number> = { '零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+  if ([...value].every(char => char in digits)) return Number([...value].map(char => digits[char]).join(''));
+  let total = 0;
+  let current = 0;
+  const units: Record<string, number> = { '十': 10, '百': 100, '千': 1000 };
+  for (const char of value) {
+    if (char in digits) current = digits[char];
+    else if (char in units) {
+      total += (current || 1) * units[char];
+      current = 0;
+    } else return null;
+  }
+  return total + current;
+}
+
+function normalizeOrdinals(value: string): string {
+  return String(value || '').replace(/第?([零〇一二两三四五六七八九十百千\d]+)(章|集|回|节|卷|部)/g, (_all, numberText, unit) => {
+    const parsed = chineseNumber(numberText);
+    return parsed === null ? _all : `第${parsed}${unit}`;
+  });
+}
 
 function normalizeSearch(value: unknown): string {
-  return String(value || '').toLowerCase()
+  return normalizeOrdinals(String(value || '').toLowerCase())
     .replace(/[“”"'《》【】\[\]()（）·•:：,，.。!！?？\s_-]+/g, '');
+}
+
+function requestedOrdinal(keyword: string): number | null {
+  const match = normalizeOrdinals(keyword).match(/第?(\d+)(?:章|集|回|节|卷|部)/);
+  return match ? Number(match[1]) : null;
+}
+
+function stripIntent(keyword: string): string {
+  return normalizeOrdinals(keyword)
+    .replace(/(请|帮我|我要|想听|播放|有声书|继续|接着|上次|续播|从头|重新)/g, '')
+    .replace(/第?\d+(章|集|回|节|卷|部)/g, '')
+    .trim();
+}
+
+async function appendSearchLog(entry: AnyMap): Promise<void> {
+  try {
+    const current = (await songloft.persistentStorage.get(SEARCH_LOG_KEY) || []) as AnyMap[];
+    current.unshift({ at: new Date().toISOString(), ...entry });
+    await songloft.persistentStorage.set(SEARCH_LOG_KEY, current.slice(0, MAX_SEARCH_LOGS));
+  } catch (_) {}
 }
 
 function firstHeader(headers: Record<string, string>, name: string): string {
@@ -36,13 +82,12 @@ function audioFileUrl(config: Config, itemId: string, file: AnyMap, index: numbe
 function chooseAudioFile(item: AnyMap, keyword: string): { file: AnyMap; index: number; offset: number } | null {
   const files = item.media?.audioFiles || [];
   if (!files.length) return null;
-  const normalized = normalizeSearch(keyword);
-  const chapterMatch = normalized.match(/(?:第)?(\d+)(?:章|集|回|节|卷|部)/);
-  if (chapterMatch) {
-    const wanted = Number(chapterMatch[1]);
+  const wanted = requestedOrdinal(keyword);
+  if (wanted !== null) {
     const byName = files.findIndex((file: AnyMap) => {
       const name = normalizeSearch(file.metadata?.filename || file.filename || '');
-      return name.includes(String(wanted)) || name.includes(`第${wanted}`);
+      const numbers = name.match(/\d+/g)?.map(Number) || [];
+      return numbers.includes(wanted) || normalizeSearch(normalizeOrdinals(file.metadata?.filename || file.filename || '')).includes(`第${wanted}`);
     });
     if (byName >= 0) return { file: files[byName], index: byName, offset: 0 };
     if (wanted > 0 && wanted <= files.length) return { file: files[wanted - 1], index: wanted - 1, offset: 0 };
@@ -75,12 +120,22 @@ async function searchAudiobook(keyword: string): Promise<AnyMap | null> {
     ...(result.libraryItems || [])
   ].map((x: AnyMap) => x.libraryItem || x);
   if (!candidates.length) return null;
-  const needle = normalizeSearch(keyword.replace(/(继续|接着|上次|续播|播放|有声书|第\d+(章|集|回|节|卷|部))/g, ''));
+  const needle = normalizeSearch(stripIntent(keyword));
   candidates.sort((a: AnyMap, b: AnyMap) => {
     const score = (item: AnyMap) => {
       const meta = metadataOf(item);
-      const haystack = normalizeSearch([meta.title, meta.authorName, meta.seriesName, meta.narratorName].filter(Boolean).join(''));
-      return (haystack === needle ? 100 : 0) + (haystack.includes(needle) ? 50 : 0);
+      const title = normalizeSearch(meta.title);
+      const author = normalizeSearch(meta.authorName || meta.authors?.map((x: AnyMap) => x.name).join(''));
+      const series = normalizeSearch(meta.seriesName || meta.series?.map((x: AnyMap) => x.name).join(''));
+      const narrator = normalizeSearch(meta.narratorName || meta.narrators?.join(''));
+      const progress = progressOf(item);
+      let value = 0;
+      if (title === needle) value += 200;
+      else if (title.includes(needle) || needle.includes(title)) value += 120;
+      if (author.includes(needle) || series.includes(needle) || narrator.includes(needle)) value += 60;
+      if (normalizeSearch([title, author, series, narrator].join('')).includes(needle)) value += 30;
+      if (/(继续|接着|上次|续播)/.test(keyword) && Number(progress?.currentTime || 0) > 0 && !progress?.isFinished) value += 80;
+      return value;
     };
     return score(b) - score(a);
   });
@@ -246,20 +301,26 @@ router.post(SEARCH_PATH, async (req) => {
   try {
     const body = JSON.parse(String(req.body || '{}'));
     const keyword = String(body.keyword || body.hint?.title || '').trim();
-    if (!keyword) return jsonResponse({ code: 1, msg: '搜索词为空', data: null });
+    if (!keyword) {
+      await appendSearchLog({ keyword, ok: false, message: '搜索词为空' });
+      return jsonResponse({ code: 1, msg: '搜索词为空', data: null });
+    }
     const config = await getConfig();
     const item = await searchAudiobook(keyword);
-    if (!item) return jsonResponse({ code: 1, msg: '未找到匹配的有声书', data: null });
+    if (!item) {
+      await appendSearchLog({ keyword, ok: false, message: '未找到匹配的有声书' });
+      return jsonResponse({ code: 1, msg: '未找到匹配的有声书', data: null });
+    }
     const meta = metadataOf(item);
     const selected = chooseAudioFile(item, keyword);
-    if (!selected) return jsonResponse({ code: 1, msg: '有声书没有可播放的音频文件', data: null });
+    if (!selected) {
+      await appendSearchLog({ keyword, ok: false, itemId: item.id, message: '有声书没有可播放的音频文件' });
+      return jsonResponse({ code: 1, msg: '有声书没有可播放的音频文件', data: null });
+    }
     const title = meta.title || '未命名有声书';
     const author = meta.authorName || meta.authors?.map((x: AnyMap) => x.name).join('、') || '未知作者';
     const fileName = selected.file.metadata?.filename || selected.file.filename || '';
-    return jsonResponse({
-      code: 0,
-      msg: selected.offset > 0 ? `已定位到上次收听文件（约 ${Math.floor(selected.offset)} 秒）` : '搜索成功',
-      data: {
+    const responseData = {
         title: (item.media?.audioFiles || []).length > 1 && fileName ? `${title} - ${fileName}` : title,
         artist: author,
         album: title,
@@ -267,13 +328,29 @@ router.post(SEARCH_PATH, async (req) => {
         cover_url: coverUrl(config, String(item.id)),
         url: audioFileUrl(config, String(item.id), selected.file, selected.index),
         dedup_key: `audiobookshelf-direct:${fileKey(String(item.id), selected.file, selected.index)}`
-      }
+      };
+    await appendSearchLog({ keyword, ok: true, itemId: item.id, title: responseData.title, fileIndex: selected.index, offset: selected.offset });
+    return jsonResponse({
+      code: 0,
+      msg: selected.offset > 0 ? `已定位到上次收听文件（约 ${Math.floor(selected.offset)} 秒）` : '搜索成功',
+      data: responseData
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     songloft.log.warn('外部搜索失败: ' + message);
+    await appendSearchLog({ keyword: '', ok: false, message });
     return jsonResponse({ code: 2, msg: message, data: null });
   }
+});
+
+router.get('/api/search/logs', async () => {
+  const logs = (await songloft.persistentStorage.get(SEARCH_LOG_KEY) || []) as AnyMap[];
+  return jsonResponse({ ok: true, logs });
+});
+
+router.post('/api/search/logs/clear', async () => {
+  await songloft.persistentStorage.set(SEARCH_LOG_KEY, []);
+  return jsonResponse({ ok: true });
 });
 
 router.get('/api/config', async () => {
@@ -395,7 +472,7 @@ router.post('/api/music/url', createMusicUrlHandler({
 }));
 
 async function onInit(): Promise<void> {
-  songloft.log.info('Audiobookshelf plugin v0.3.0 initialized');
+  songloft.log.info('Audiobookshelf plugin v0.4.0 initialized');
   await registerToMiot();
 }
 async function onDeinit(): Promise<void> {
