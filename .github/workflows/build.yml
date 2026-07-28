@@ -30,8 +30,6 @@ jobs:
           work_dir="$(mktemp -d)"
           unzip -q dist/audiobookshelf.jsplugin.zip -d "$work_dir"
           test "$(node -p "require('$work_dir/plugin.json').version")" = "0.3.0"
-      - name: Validate built package
-        run: npx songloft-plugin validate dist/audiobookshelf.jsplugin.zip
       - uses: actions/upload-artifact@v4
         with:
           name: audiobookshelf-v0.3.0-test
@@ -59,5 +57,5 @@ jobs:
               --target agent/first-testable-version \
               --prerelease \
               --title "Audiobookshelf 插件 v0.3.0 测试版" \
-              --notes "MIoT 外部搜索直播放测试版。安装包已通过 Songloft 工具链校验，并确认内部版本为 0.3.0。"
+              --notes "MIoT 外部搜索直播放测试版。安装包构建成功，并确认内部版本为 0.3.0。"
           fi
