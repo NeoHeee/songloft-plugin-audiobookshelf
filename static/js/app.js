@@ -10,6 +10,7 @@ async function init() {
   try {
     const config = await apiGet('/api/config');
     $('server').value = config.serverUrl || DEFAULT_SERVER;
+    $('playbackPreference').value = config.playbackPreference || 'resume';
     if (config.hasApiKey) $('key').placeholder = '已保存，如不更换可留空';
     if (config.serverUrl && config.hasApiKey) await test(false, config.libraryId);
   } catch (e) { status(e.message, false); }
@@ -21,7 +22,8 @@ async function save() {
     await apiPost('/api/config', {
       serverUrl: $('server').value || DEFAULT_SERVER,
       apiKey: $('key').value,
-      libraryId: $('library').value
+      libraryId: $('library').value,
+      playbackPreference: $('playbackPreference').value
     });
     $('key').value = '';
     await test(true, $('library').value);
@@ -43,7 +45,7 @@ async function loadBooks() {
   try {
     const libraryId = $('library').value;
     if (!libraryId) throw new Error('请先选择书库');
-    await apiPost('/api/config', { serverUrl: $('server').value, apiKey: '', libraryId });
+    await apiPost('/api/config', { serverUrl: $('server').value, apiKey: '', libraryId, playbackPreference: $('playbackPreference').value });
     status('正在读取书库…');
     const data = await apiGet(`/api/items?libraryId=${encodeURIComponent(libraryId)}&limit=100`);
     $('books').innerHTML = data.items.map(book => {
