@@ -2,38 +2,40 @@
 
 将 Audiobookshelf 有声书书库连接到 Songloft，使书库内容可通过 Songloft 及智能音响插件播放。
 
-## 0.1.0 测试版
+## v0.2.0 测试版
 
-- Audiobookshelf API 密钥认证（兼容代理用户）
-- 连接测试与有声书书库选择
-- 浏览书籍、作者、封面和时长
-- 一本书导入为一个 Songloft 歌单
-- 每个 Audiobookshelf 音频文件导入为一首远程歌曲
-- 播放时由 Songloft 动态解析音频 URL 并附加认证请求头，不把 API 密钥写入歌曲播放地址
-- 按 `libraryItemId + inode` 去重导入
+- 默认服务器地址调整为 `http://192.168.1.1:13378`
+- Audiobookshelf API 密钥认证与连接测试
+- 浏览有声书、作者、封面、总时长及当前收听进度
+- 一本书对应一个 Songloft 歌单
+- 使用稳定去重键复用已导入歌曲，重复同步不再重复添加
+- 保存 Audiobookshelf 条目、Songloft 歌单和歌曲的同步关系
+- 支持单本检查更新及整个书库增量同步
+- 新增音频文件自动补入原歌单
+- 播放时动态读取当前 API 密钥并附加认证请求头
 
-## 安装
+## 安装与测试
 
-1. 在 Audiobookshelf 的“设置 → API 密钥”中创建密钥，代理你平时收听的普通用户。
+1. 在 Audiobookshelf 的“设置 → API 密钥”中创建密钥，代理平时收听的普通用户。
 2. 下载 `dist/audiobookshelf.jsplugin.zip`。
-3. 在 Songloft V2.11.0 的插件管理页面上传并启用。
-4. 打开插件，填写局域网地址（例如 `http://10.10.10.20:13378`）和 API 密钥。
-5. 保存并测试连接，选择书库后加载、导入有声书。
+3. 在 Songloft V2.11.0 插件管理页面上传并启用。
+4. 打开插件，确认局域网地址并填写 API 密钥。
+5. 点击“保存并测试”，选择书库后加载内容。
+6. 先选择一本书导入并测试 Songloft 播放，再测试“增量同步全部”和智能音响调用。
 
-> Songloft 服务端必须能访问填写的 Audiobookshelf 局域网地址。智能音响通过 Songloft 的统一播放入口取流，不需要直接保存 API 密钥。
+> Songloft 服务端必须能够访问所填写的 Audiobookshelf 局域网地址。
 
-## 当前限制
+## 当前能力边界
 
-- 首版按“音频文件”导入；单个 M4B 内部章节会显示在 API 数据中，但暂不能拆成独立可跳转歌曲。
-- 尚未将 Songloft 播放进度回传到 Audiobookshelf。
-- API 密钥变化后，需要重新导入歌曲以更新播放 URL。
+- Songloft V2.11.0 未向 JS 插件提供播放位置、暂停或结束事件，因此本版只能读取并展示 Audiobookshelf 已有进度，暂不能把 Songloft 播放进度自动回传。
+- 单个 M4B 的章节定点播放需要宿主支持起始时间或可控转码区间；本版仍按音频文件导入。
+- 智能音响精确续播依赖宿主向插件传递播放位置并支持带起点播放，待 Songloft 接口具备后接入。
 
 ## 开发
 
 ```bash
 npm install
-npm run validate
 npm run build
 ```
 
-构建产物位于 `dist/audiobookshelf.jsplugin.zip`。
+构建产物位于 `dist/audiobookshelf.jsplugin.zip`。成品包解压后可运行 `songloft-plugin validate` 校验。

@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
   "name": "Audiobookshelf 书库",
-  "version": "0.1.0",
-  "description": "将 Audiobookshelf 有声书导入 Songloft，并供智能音响播放",
+  "version": "0.2.0",
+  "description": "将 Audiobookshelf 有声书增量同步到 Songloft，并供智能音响播放",
   "author": "NeoHeee",
   "homepage": "https://github.com/NeoHeee/songloft-plugin-audiobookshelf",
   "license": "MIT",

@@ -10,18 +10,19 @@
     .card{background:var(--md-surface-container,#fff);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 4px 18px #4c3c7712}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{display:block;font-size:13px;margin-bottom:5px;opacity:.75}
     input,select,button{box-sizing:border-box;width:100%;min-height:44px;border-radius:12px;border:1px solid #766b8844;padding:10px 12px;background:transparent;color:inherit}
-    button{width:auto;background:#6750a4;color:#fff;border:0;font-weight:600;cursor:pointer}.ghost{background:#ece6f8;color:#3d3158}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-    #books{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}.book{display:flex;gap:12px}.book img{width:72px;height:104px;object-fit:cover;border-radius:9px;background:#ddd}
-    .book h3{font-size:15px;margin:2px 0}.book p{font-size:13px;margin:4px 0;opacity:.7}.status{margin-top:10px;min-height:22px}.error{color:#b3261e}.ok{color:#287a45}
+    button{width:auto;background:#6750a4;color:#fff;border:0;font-weight:600;cursor:pointer}button:disabled{opacity:.55}.ghost{background:#ece6f8;color:#3d3158}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    #books{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}.book{display:flex;gap:12px}.book img{width:72px;height:104px;object-fit:cover;border-radius:9px;background:#ddd}
+    .book h3{font-size:15px;margin:2px 0}.book p{font-size:13px;margin:4px 0;opacity:.72}.book .sync-state{color:#6750a4;opacity:1}.status{margin-top:10px;min-height:22px}.error{color:#b3261e}.ok{color:#287a45}
+    .notice{font-size:13px;opacity:.72;margin-top:10px}
     @media(max-width:620px){.grid{grid-template-columns:1fr}header,main{padding:14px}}
   </style>
 </head>
 <body>
-  <header><h1>Audiobookshelf 书库</h1><div class="sub">连接局域网书库并导入到 Songloft</div></header>
+  <header><h1>Audiobookshelf 书库</h1><div class="sub">连接局域网书库并增量同步到 Songloft</div></header>
   <main>
     <section class="card">
       <div class="grid">
-        <div><label for="server">服务器地址</label><input id="server" placeholder="http://10.10.10.20:13378"></div>
+        <div><label for="server">服务器地址</label><input id="server" value="http://192.168.1.1:13378" placeholder="http://192.168.1.1:13378"></div>
         <div><label for="key">API 密钥</label><input id="key" type="password" placeholder="已保存时可留空"></div>
       </div>
       <div class="actions"><button id="save">保存并测试</button></div>
@@ -29,7 +30,8 @@
     </section>
     <section class="card">
       <div class="grid"><div><label for="library">有声书书库</label><select id="library"><option value="">请先测试连接</option></select></div></div>
-      <div class="actions"><button id="load">加载书库</button></div>
+      <div class="actions"><button id="load">加载书库</button><button id="syncAll" class="ghost">增量同步全部</button></div>
+      <div class="notice">重复同步不会重复添加歌曲；新增音频文件会自动补入原歌单。当前收听进度来自 Audiobookshelf。</div>
     </section>
     <section id="books"></section>
   </main>
