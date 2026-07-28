@@ -25,12 +25,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Validate package and embedded version
+      - name: Verify embedded version
         run: |
           work_dir="$(mktemp -d)"
           unzip -q dist/audiobookshelf.jsplugin.zip -d "$work_dir"
           test "$(node -p "require('$work_dir/plugin.json').version")" = "0.3.0"
-          npx songloft-plugin validate "$work_dir"
+      - name: Validate built package
+        run: npx songloft-plugin validate dist/audiobookshelf.jsplugin.zip
       - uses: actions/upload-artifact@v4
         with:
           name: audiobookshelf-v0.3.0-test
