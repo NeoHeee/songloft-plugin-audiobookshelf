@@ -1,0 +1,14 @@
+{
+  "name": "audiobookshelf",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "songloft-plugin build",
+    "validate": "songloft-plugin validate"
+  },
+  "devDependencies": {
+    "@songloft/plugin-builder": "^2.13.0",
+    "@songloft/plugin-sdk": "^2.13.0",
+    "typescript": "^5.7.0"
+  }
+}

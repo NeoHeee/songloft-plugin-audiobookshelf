@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
+  "name": "Audiobookshelf 书库",
+  "version": "0.1.0",
+  "description": "将 Audiobookshelf 有声书导入 Songloft，并供智能音响播放",
+  "author": "NeoHeee",
+  "homepage": "https://github.com/NeoHeee/songloft-plugin-audiobookshelf",
+  "license": "MIT",
+  "entryPath": "audiobookshelf",
+  "main": "main.js",
+  "minHostVersion": "2.11.0",
+  "permissions": ["persistent-storage", "songs.read", "songs.write", "playlists.read", "playlists.write"],
+  "updateUrl": "",
+  "download_url": "",
+  "entryHash": "",
+  "zipHash": ""
+}
