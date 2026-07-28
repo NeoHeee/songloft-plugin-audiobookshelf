@@ -12,6 +12,21 @@
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
+## 插件源订阅
+
+在 Songloft 中进入「设置 → JS 插件管理 → 插件商店 → 管理订阅源」，添加以下地址：
+
+```text
+https://raw.githubusercontent.com/NeoHeee/songloft-plugin-audiobookshelf/main/registry.json
+```
+
+当前插件源包含：
+
+- Audiobookshelf 书库
+- 洛雪音源（LXMusic）
+
+添加后即可在插件商店中查看、安装和更新，无需手动下载插件包。
+
 ## 主要功能
 
 ### 外部搜索直接播放
