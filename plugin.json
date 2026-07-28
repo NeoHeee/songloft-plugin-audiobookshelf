@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
   "name": "Audiobookshelf 书库",
-  "version": "0.3.0",
-  "description": "Audiobookshelf 有声书外部搜索源，支持 MIoT 不入库直接播放并保留兼容导入模式",
+  "version": "0.4.0",
+  "description": "Audiobookshelf 有声书外部搜索源，支持增强搜索、准确续播定位、MIoT 不入库直播放及兼容导入模式",
   "author": "NeoHeee",
   "homepage": "https://github.com/NeoHeee/songloft-plugin-audiobookshelf",
   "license": "MIT",
