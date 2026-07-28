@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - agent/first-testable-version
+    paths-ignore:
+      - dist/**
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -24,9 +26,32 @@ jobs:
         run: |
           work_dir="$(mktemp -d)"
           unzip -q dist/audiobookshelf.jsplugin.zip -d "$work_dir"
+          test "$(node -p "require('$work_dir/plugin.json').version")" = "0.3.0"
           npx songloft-plugin validate "$work_dir"
       - uses: actions/upload-artifact@v4
         with:
           name: audiobookshelf-v0.3.0-test
           path: dist/audiobookshelf.jsplugin.zip
           if-no-files-found: error
+      - name: Publish verified package to branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/audiobookshelf.jsplugin.zip
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish verified v0.3.0 package"
+            git push
+          fi
+      - name: Create or update v0.3.0 prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v0.3.0 >/dev/null 2>&1; then
+            gh release upload v0.3.0 dist/audiobookshelf.jsplugin.zip --clobber
+          else
+            gh release create v0.3.0 dist/audiobookshelf.jsplugin.zip \
+              --target agent/first-testable-version \
+              --prerelease \
+              --title "Audiobookshelf 插件 v0.3.0 测试版" \
+              --notes "MIoT 外部搜索直播放测试版。安装包已通过 Songloft 工具链校验，并确认内部版本为 0.3.0。"
+          fi
