@@ -1,8 +1,7 @@
 {
-  "name": "NeoHeee Songloft 插件源",
+  "name": " songloft-plugin-audiobookshelf",
   "includes": [],
   "plugins": [
     "https://raw.githubusercontent.com/NeoHeee/songloft-plugin-audiobookshelf/main/plugin.json",
-    "https://raw.githubusercontent.com/NeoHeee/songloft-plugin-lxmusic/main/plugin.json"
   ]
 }
