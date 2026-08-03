@@ -20,12 +20,6 @@
 https://raw.githubusercontent.com/NeoHeee/songloft-plugin-audiobookshelf/main/registry.json
 ```
 
-当前插件源包含：
-
-- Audiobookshelf 书库
-- 洛雪音源（LXMusic）
-
-添加后即可在插件商店中查看、安装和更新，无需手动下载插件包。
 
 ## 主要功能
 
