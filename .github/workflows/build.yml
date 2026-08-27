@@ -3,7 +3,7 @@ name: Build test plugin
 on:
   push:
     branches:
-      - agent/first-testable-version
+      - agent/import-title-format
     paths-ignore:
       - dist/**
   pull_request:
@@ -29,10 +29,10 @@ jobs:
         run: |
           work_dir="$(mktemp -d)"
           unzip -q dist/audiobookshelf.jsplugin.zip -d "$work_dir"
-          test "$(node -p "require('$work_dir/plugin.json').version")" = "0.6.0"
+          test "$(node -p "require('$work_dir/plugin.json').version")" = "0.6.1"
       - uses: actions/upload-artifact@v4
         with:
-          name: audiobookshelf-v0.6.0-test
+          name: audiobookshelf-v0.6.1-test
           path: dist/audiobookshelf.jsplugin.zip
           if-no-files-found: error
       - name: Publish verified package to branch
@@ -42,20 +42,20 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f dist/audiobookshelf.jsplugin.zip
           if ! git diff --cached --quiet; then
-            git commit -m "Publish verified v0.6.0 package"
+            git commit -m "Publish verified v0.6.1 package"
             git push
           fi
-      - name: Create or update v0.6.0 prerelease
+      - name: Create or update v0.6.1 prerelease
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v0.6.0 >/dev/null 2>&1; then
-            gh release upload v0.6.0 dist/audiobookshelf.jsplugin.zip --clobber
+          if gh release view v0.6.1 >/dev/null 2>&1; then
+            gh release upload v0.6.1 dist/audiobookshelf.jsplugin.zip --clobber
           else
-            gh release create v0.6.0 dist/audiobookshelf.jsplugin.zip \
-              --target agent/first-testable-version \
+            gh release create v0.6.1 dist/audiobookshelf.jsplugin.zip \
+              --target agent/import-title-format \
               --prerelease \
-              --title "Audiobookshelf 插件 v0.6.0 测试版" \
-              --notes "M4B 章节与语音点播体验合并测试版。安装包构建成功，并确认内部版本为 0.6.0。"
+              --title "Audiobookshelf 插件 v0.6.1 测试版" \
+              --notes "新增可配置的导入歌曲标题格式，并修复已有歌曲改名数量提示。安装包构建成功，并确认内部版本为 0.6.1。"
           fi

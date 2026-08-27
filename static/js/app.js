@@ -11,6 +11,7 @@ async function init() {
     const config = await apiGet('/api/config');
     $('server').value = config.serverUrl || DEFAULT_SERVER;
     $('playbackPreference').value = config.playbackPreference || 'resume';
+    $('importTitleFormat').value = config.importTitleFormat || 'book-index-source';
     if (config.hasApiKey) $('key').placeholder = '已保存，如不更换可留空';
     if (config.serverUrl && config.hasApiKey) await test(false, config.libraryId);
   } catch (e) { status(e.message, false); }
@@ -23,7 +24,8 @@ async function save() {
       serverUrl: $('server').value || DEFAULT_SERVER,
       apiKey: $('key').value,
       libraryId: $('library').value,
-      playbackPreference: $('playbackPreference').value
+      playbackPreference: $('playbackPreference').value,
+      importTitleFormat: $('importTitleFormat').value
     });
     $('key').value = '';
     await test(true, $('library').value);
@@ -45,7 +47,7 @@ async function loadBooks() {
   try {
     const libraryId = $('library').value;
     if (!libraryId) throw new Error('请先选择书库');
-    await apiPost('/api/config', { serverUrl: $('server').value, apiKey: '', libraryId, playbackPreference: $('playbackPreference').value });
+    await apiPost('/api/config', { serverUrl: $('server').value, apiKey: '', libraryId, playbackPreference: $('playbackPreference').value, importTitleFormat: $('importTitleFormat').value });
     status('正在读取书库…');
     const data = await apiGet(`/api/items?libraryId=${encodeURIComponent(libraryId)}&limit=100`);
     $('books').innerHTML = data.items.map(book => {
@@ -63,15 +65,26 @@ async function loadBooks() {
   } catch (e) { status(e.message, false); }
 }
 
+async function saveImportOptions() {
+  await apiPost('/api/config', {
+    serverUrl: $('server').value || DEFAULT_SERVER,
+    apiKey: '',
+    libraryId: $('library').value,
+    playbackPreference: $('playbackPreference').value,
+    importTitleFormat: $('importTitleFormat').value
+  });
+}
+
 async function importBook(id, button) {
   try {
     button.disabled = true;
     button.textContent = '正在同步…';
+    await saveImportOptions();
     const result = await apiPost(`/api/import/${encodeURIComponent(id)}`, {});
-    button.textContent = result.unchanged ? '已是最新' : `已同步，新增 ${result.added}`;
+    button.textContent = result.unchanged ? '已是最新' : `已同步，新增 ${result.added}，改名 ${result.renamed || 0}`;
     status(result.unchanged
       ? '没有发现变化，未重复添加歌曲'
-      : `同步成功，共 ${result.total} 个音频，本次新增到歌单 ${result.added} 个`);
+      : `同步成功，共 ${result.total} 个音频，本次新增 ${result.added} 个，改名 ${result.renamed || 0} 个`);
   } catch (e) {
     button.disabled = false;
     button.textContent = '重新同步';
@@ -84,9 +97,10 @@ async function syncAll() {
     const libraryId = $('library').value;
     if (!libraryId) throw new Error('请先选择书库');
     $('syncAll').disabled = true;
+    await saveImportOptions();
     status('正在增量同步整个书库，请勿关闭页面…');
     const result = await apiPost('/api/sync-all', { libraryId });
-    status(`同步完成：成功 ${result.success} 本，失败 ${result.failed} 本，新增 ${result.added} 个音频`);
+    status(`同步完成：成功 ${result.success} 本，失败 ${result.failed} 本，新增 ${result.added} 个音频，改名 ${result.renamed || 0} 个`);
     await loadBooks();
   } catch (e) {
     status(e.message, false);

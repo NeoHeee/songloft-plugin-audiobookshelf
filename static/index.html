@@ -30,8 +30,9 @@
     </section>
     <section class="card">
       <div class="grid"><div><label for="library">有声书书库</label><select id="library"><option value="">请先测试连接</option></select></div><div><label for="playbackPreference">默认点播方式</label><select id="playbackPreference"><option value="resume">优先继续收听</option><option value="from-start">默认从头播放</option></select></div></div>
+      <div style="margin-top:12px"><label for="importTitleFormat">导入歌曲标题格式</label><select id="importTitleFormat"><option value="source">源文件名（例：001前言01.m4a）</option><option value="book-source">书名 - 源文件标题（例：Dark Mirror|美国黑镜 - 001前言01）</option><option value="book-index-source">书名 - 序号 - 源文件名（兼容旧格式）</option></select></div>
       <div class="actions"><button id="load">加载书库</button><button id="syncAll" class="ghost">增量同步全部</button></div>
-      <div class="notice">启用插件后会自动注册为 MIoT 外部搜索源。请在 MIoT 中选择“Audiobookshelf 有声书”，并开启“不入库直接播放”。下方导入与增量同步保留为兼容模式。</div>
+      <div class="notice">修改标题格式后，对已导入的书执行“检查更新”或“增量同步全部”即可更新歌曲标题。启用插件后会自动注册为 MIoT 外部搜索源。请在 MIoT 中选择“Audiobookshelf 有声书”，并开启“不入库直接播放”。下方导入与增量同步保留为兼容模式。</div>
     </section>
     <section class="card">
       <h2 style="font-size:18px;margin-top:0">外部搜索测试</h2>
