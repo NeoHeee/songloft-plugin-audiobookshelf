@@ -6,9 +6,9 @@
 
 ## 下载
 
-当前版本：**v0.8.1**
+当前版本：**v0.9.0**
 
-[下载 ABS书库插件 v0.8.1](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.8.1/audiobookshelf.jsplugin.zip)
+[下载 ABS书库插件 v0.9.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.9.0/audiobookshelf.jsplugin.zip)
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
@@ -27,6 +27,9 @@ https://raw.githubusercontent.com/NeoHeee/songloft-plugin-audiobookshelf/main/re
 
 - 自动注册为 MIoT 外部搜索源
 - 不导入 Songloft，搜索后直接推送音频地址至智能音箱
+- 在插件书库页面直接播放，支持上一集、下一集和多文件连续播放
+- 页面播放默认按 Audiobookshelf 进度续播，也可设置为从头播放
+- 可从播放页面选择 MIoT 智能音箱并推送当前音频，支持暂停、继续、停止和状态查询
 - 支持书名、作者、演播者、副标题和系列名综合匹配
 - 支持同名书籍排序，优先选择正在收听的版本
 - 提供外部搜索测试工具和最近 50 条搜索日志
@@ -54,6 +57,16 @@ https://raw.githubusercontent.com/NeoHeee/songloft-plugin-audiobookshelf/main/re
 - 可计算章节和续播位置在文件内的准确秒数
 - 提供“优先继续收听”和“默认从头播放”两种点播策略
 
+### 播放历史
+
+- 播放页面提供“当前播放”和“播放历史”两个视图
+- 记录最近 50 本有声书，同一本书只保留最新记录
+- 本机播放会定期保存当前音频和播放位置，可从记录继续播放
+- 成功推送到智能音箱后记录所选音频、推送位置和设备名称
+- 支持删除单条记录或清空全部历史，不会影响 Audiobookshelf 和 Songloft 中的内容
+
+> MIoT 的直接 URL 推送目前不支持指定文件内起播秒数。多文件有声书可准确推送所选音频；单文件 M4B 推送到音箱后仍会从文件开头播放。
+
 ### Songloft 兼容导入
 
 如需在 Songloft 内浏览或使用歌单，仍可启用兼容导入模式：
@@ -68,9 +81,9 @@ https://raw.githubusercontent.com/NeoHeee/songloft-plugin-audiobookshelf/main/re
 
 ## 安装与配置
 
-1. 在 Audiobookshelf 的“设置 → API 密钥”中创建密钥。建议使用普通用户，并仅授予必要权限。
+1. 选择认证方式：可以在 Audiobookshelf 的“设置 → API 密钥”中创建密钥，也可以直接使用 Audiobookshelf 用户名和密码登录。建议使用普通用户，并仅授予必要权限。
 2. 下载并安装本插件，在 Songloft 中启用。
-3. 填写 Audiobookshelf 地址和 API 密钥，然后选择有声书书库。
+3. 填写 Audiobookshelf 地址，选择“API 密钥”或“账号密码”并完成连接，然后选择有声书书库。
 4. 选择默认点播策略：“优先继续收听”或“默认从头播放”。
 5. 选择导入歌曲标题格式；修改后再次检查更新即可为已导入歌曲改名。
 6. 安装并启用新版 Songloft MIoT 插件。
@@ -102,16 +115,28 @@ http://192.168.1.1:13378
 - 使用最小权限的独立 API 密钥
 - 仅在可信局域网中使用
 - 不要公开分享播放链接、配置截图或搜索日志中的完整地址
+- 账号密码只用于换取登录令牌，插件不会持久保存密码；使用账号密码连接远程服务器时应配置 HTTPS
 
 ## 已知限制
 
 - 插件可以准确识别 M4B 章节和续播秒数，并返回 `start_position`，但 MIoT/智能音箱当前没有开放起始秒数控制，因此单文件 M4B 仍可能从文件开头播放。
+- 智能音箱播放历史记录的是推送成功时的位置，不代表音箱后续的实时播放进度。
 - 多文件有声书可以准确续播到当前音频文件，但文件内部仍可能从头开始。
 - “下一集/上一集”依赖插件最近一次直接播放记录；重装插件或清除配置后，需要先正常点播一本书。
 - “我的收藏”依赖 Audiobookshelf 返回收藏标记；部分服务器版本未提供该字段时可能没有匹配结果。
 - Songloft V2.11.0 尚未向 JS 插件开放播放位置、暂停和结束事件，因此插件暂时无法将智能音箱的实时播放进度自动回传至 Audiobookshelf。
 
 ## 版本说明
+
+### v0.9.0
+
+- 新增播放历史视图，最多保存最近 50 本有声书
+- 本机播放定期保存音频、章节和秒数，可从历史位置继续播放
+- 记录智能音箱推送设备与推送时的位置，并与本机记录区分显示
+- 支持删除单条播放记录或清空全部历史
+- 新增账号密码认证方式，密码仅用于登录且不会持久保存
+- 兼容新版访问令牌、刷新令牌和旧版用户令牌
+- 账号密码通过 HTTP 连接时显示安全警告
 
 ### v0.8.1
 
