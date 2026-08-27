@@ -686,7 +686,7 @@ router.post('/api/music/url', createMusicUrlHandler({
 }));
 
 async function onInit(): Promise<void> {
-  songloft.log.info('Audiobookshelf plugin v0.6.1 initialized');
+  songloft.log.info('Audiobookshelf plugin v0.7.0 initialized');
   await registerToMiot();
 }
 async function onDeinit(): Promise<void> {

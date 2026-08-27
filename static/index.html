@@ -2,47 +2,140 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f6fb">
   <title>Audiobookshelf 有声书</title>
-  <style>
-    body{margin:0;background:var(--md-surface,#f7f5ff);color:var(--md-on-surface,#24212b);font:15px/1.5 system-ui,sans-serif}
-    header,main{max-width:980px;margin:auto;padding:18px}h1{font-size:24px;margin:0}.sub{opacity:.7}
-    .card{background:var(--md-surface-container,#fff);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 4px 18px #4c3c7712}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{display:block;font-size:13px;margin-bottom:5px;opacity:.75}
-    input,select,button{box-sizing:border-box;width:100%;min-height:44px;border-radius:12px;border:1px solid #766b8844;padding:10px 12px;background:transparent;color:inherit}
-    button{width:auto;background:#6750a4;color:#fff;border:0;font-weight:600;cursor:pointer}button:disabled{opacity:.55}.ghost{background:#ece6f8;color:#3d3158}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-    #books{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}.book{display:flex;gap:12px}.book img{width:72px;height:104px;object-fit:cover;border-radius:9px;background:#ddd}
-    .book h3{font-size:15px;margin:2px 0}.book p{font-size:13px;margin:4px 0;opacity:.72}.book .sync-state{color:#6750a4;opacity:1}.status{margin-top:10px;min-height:22px}.error{color:#b3261e}.ok{color:#287a45}
-    .notice{font-size:13px;opacity:.72;margin-top:10px}.result{white-space:pre-wrap;background:#1f1b24;color:#eee;border-radius:12px;padding:12px;min-height:44px;overflow:auto}.logs{font-size:12px;max-height:300px;overflow:auto}.log{padding:8px 0;border-bottom:1px solid #766b8822}
-    @media(max-width:620px){.grid{grid-template-columns:1fr}header,main{padding:14px}}
-  </style>
+  <script>
+    (() => {
+      const theme = localStorage.getItem('audiobookshelf:theme') || 'system';
+      document.documentElement.dataset.themeMode = theme;
+      if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+    })();
+  </script>
+  <link rel="stylesheet" href="static/css/style.css">
 </head>
 <body>
-  <header><h1>Audiobookshelf 有声书</h1><div class="sub">优先通过 MIoT 外部搜索直接播放，也可兼容导入 Songloft</div></header>
-  <main>
-    <section class="card">
-      <div class="grid">
-        <div><label for="server">服务器地址</label><input id="server" value="http://192.168.1.1:13378" placeholder="http://192.168.1.1:13378"></div>
-        <div><label for="key">API 密钥</label><input id="key" type="password" placeholder="已保存时可留空"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 4.8A3.8 3.8 0 0 1 8.8 1H19v18H8.8A3.8 3.8 0 0 0 5 22.8V4.8Z"/><path d="M5 5a4 4 0 0 1 4-4M9 6h6M9 10h6M9 14h4"/></svg>
+          </div>
+          <div class="brand-copy">
+            <div class="brand-row"><h1>Audiobookshelf 有声书</h1><span class="version-badge">v0.7.0</span></div>
+            <p>连接私人书库 · 续播有声世界</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div id="runtimeStatus" class="runtime-status" data-tone="neutral" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <div><strong id="runtimeTitle">等待连接</strong><span id="runtimeSubtitle">请先配置 Audiobookshelf</span></div>
+          </div>
+          <div class="theme-picker" role="group" aria-label="界面主题">
+            <button class="theme-option" type="button" data-theme-choice="system" title="跟随系统" aria-label="跟随系统"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>自动</span></button>
+            <button class="theme-option" type="button" data-theme-choice="light" title="浅色模式" aria-label="浅色模式"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/></svg><span>浅色</span></button>
+            <button class="theme-option" type="button" data-theme-choice="dark" title="深色模式" aria-label="深色模式"><svg viewBox="0 0 24 24"><path d="M20.6 15.3A8.7 8.7 0 0 1 8.7 3.4 9 9 0 1 0 20.6 15.3Z"/></svg><span>深色</span></button>
+          </div>
+        </div>
       </div>
-      <div class="actions"><button id="save">保存并测试</button></div>
-      <div id="status" class="status"></div>
-    </section>
-    <section class="card">
-      <div class="grid"><div><label for="library">有声书书库</label><select id="library"><option value="">请先测试连接</option></select></div><div><label for="playbackPreference">默认点播方式</label><select id="playbackPreference"><option value="resume">优先继续收听</option><option value="from-start">默认从头播放</option></select></div></div>
-      <div style="margin-top:12px"><label for="importTitleFormat">导入歌曲标题格式</label><select id="importTitleFormat"><option value="source">源文件名（例：001前言01.m4a）</option><option value="book-source">书名 - 源文件标题（例：Dark Mirror|美国黑镜 - 001前言01）</option><option value="book-index-source">书名 - 序号 - 源文件名（兼容旧格式）</option></select></div>
-      <div class="actions"><button id="load">加载书库</button><button id="syncAll" class="ghost">增量同步全部</button></div>
-      <div class="notice">修改标题格式后，对已导入的书执行“检查更新”或“增量同步全部”即可更新歌曲标题。启用插件后会自动注册为 MIoT 外部搜索源。请在 MIoT 中选择“Audiobookshelf 有声书”，并开启“不入库直接播放”。下方导入与增量同步保留为兼容模式。</div>
-    </section>
-    <section class="card">
-      <h2 style="font-size:18px;margin-top:0">外部搜索测试</h2>
-      <div class="grid"><div><label for="searchKeyword">模拟 MIoT 搜索词</label><input id="searchKeyword" placeholder="例如：继续播放明朝那些事儿 / 第十二集"></div></div>
-      <div class="actions"><button id="testSearch">测试搜索</button><button id="refreshLogs" class="ghost">刷新日志</button><button id="clearLogs" class="ghost">清空日志</button></div>
-      <pre id="searchResult" class="result">尚未测试</pre>
-      <div id="searchLogs" class="logs"></div>
-    </section>
-    <section id="books"></section>
-  </main>
+    </header>
+
+    <main>
+      <nav class="workspace-nav" aria-label="主要功能">
+        <button type="button" data-view="library"><svg viewBox="0 0 24 24"><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H12v18H7.5A3.5 3.5 0 0 0 4 23.5v-18Z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H12v18h4.5a3.5 3.5 0 0 1 3.5 3.5v-18Z"/></svg><span>书库</span></button>
+        <button type="button" data-view="settings" class="active"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg><span>连接与设置</span></button>
+        <button type="button" data-view="diagnostics"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/><path d="m3 14 7-6 6 3 6-6"/></svg><span>运行诊断</span></button>
+      </nav>
+      <div id="actionNotice" class="action-notice hidden" role="alert">
+        <div><strong id="actionNoticeTitle">操作未完成</strong><span id="actionNoticeMessage"></span></div>
+        <div class="compact-actions"><button id="actionRetry" class="secondary hidden" type="button">重试</button><button id="actionDismiss" class="text-button" type="button" aria-label="关闭提示">关闭</button></div>
+      </div>
+
+      <section class="hero workspace-page active" data-workspace="settings">
+        <div class="hero-copy"><span class="section-kicker">私人有声书中心</span><h2>让书库、进度与智能音箱保持连接</h2><p>优先通过 MIoT 外部搜索直接播放，也可按需导入 Songloft 管理歌单。</p>
+          <div class="setup-steps" aria-label="开始使用进度">
+            <a class="setup-step active" id="stepConnection" href="#connection"><span>1</span><div><strong>连接服务</strong><small>填写地址和密钥</small></div></a>
+            <a class="setup-step" id="stepLibrary" href="#preferences"><span>2</span><div><strong>选择书库</strong><small>设置播放与标题</small></div></a>
+            <a class="setup-step" id="stepBrowse" href="#librarySection" data-open-view="library"><span>3</span><div><strong>浏览与同步</strong><small>按需导入有声书</small></div></a>
+          </div>
+        </div>
+        <div class="hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6.5A3.5 3.5 0 0 1 7.5 3H12v17H7.5A3.5 3.5 0 0 0 4 23.5v-17Z"/><path d="M20 6.5A3.5 3.5 0 0 0 16.5 3H12v17h4.5a3.5 3.5 0 0 1 3.5 3.5v-17Z"/><path d="M7.5 8.5h2M14.5 8.5h2M14.5 12h2"/></svg></div>
+      </section>
+
+      <section id="connection" class="card workspace-page active" data-workspace="settings" aria-labelledby="connectionHeading">
+        <div class="section-heading"><div><span class="section-kicker">连接配置</span><h2 id="connectionHeading">Audiobookshelf 服务器</h2></div><p>密钥只保存在插件的持久存储中，页面不会回显已保存内容。</p></div>
+        <div class="form-grid">
+          <label class="field" for="server"><span>服务器地址</span><input id="server" value="http://192.168.1.1:13378" placeholder="http://192.168.1.1:13378"></label>
+          <label class="field" for="key"><span>API 密钥</span><input id="key" type="password" placeholder="已保存时可留空" autocomplete="off"></label>
+        </div>
+        <div class="action-row"><button id="save" class="primary" type="button"><svg viewBox="0 0 24 24"><path d="M5 12.5 9.5 17 19 7.5"/></svg><span>保存并测试连接</span></button></div>
+        <div id="connectionStatus" class="operation-status hidden" role="status"></div>
+      </section>
+
+      <section id="preferences" class="card workspace-page active" data-workspace="settings" aria-labelledby="preferenceHeading">
+        <div class="section-heading"><div><span class="section-kicker">书库偏好</span><h2 id="preferenceHeading">播放与导入</h2></div><p>这些设置会用于书库加载、直接点播和后续增量同步。</p></div>
+        <div class="form-grid">
+          <label class="field" for="library"><span>有声书书库</span><select id="library"><option value="">请先测试连接</option></select></label>
+          <label class="field" for="playbackPreference"><span>默认点播方式</span><select id="playbackPreference"><option value="resume">优先继续收听</option><option value="from-start">默认从头播放</option></select></label>
+          <label class="field field-wide" for="importTitleFormat"><span>导入歌曲标题格式</span><select id="importTitleFormat"><option value="source">源文件名（例：001前言01.m4a）</option><option value="book-source">书名 - 源文件标题（例：Dark Mirror|美国黑镜 - 001前言01）</option><option value="book-index-source">书名 - 序号 - 源文件名（兼容旧格式）</option></select></label>
+        </div>
+        <div class="action-row"><button id="load" class="primary" type="button">保存设置并加载书库</button></div>
+        <div class="info-note"><span aria-hidden="true">i</span><p>修改标题格式后，对已导入的书执行“检查更新”或“增量同步全部”即可更新歌曲标题。MIoT 中建议开启“不入库直接播放”。</p></div>
+      </section>
+
+      <section class="hero workspace-page" data-workspace="diagnostics">
+        <div class="hero-copy"><span class="section-kicker">运行诊断</span><h2>快速定位搜索与播放问题</h2><p>模拟 MIoT 搜索请求，查看匹配结果和最近运行记录。</p>
+          <div class="hero-metrics" aria-label="诊断状态">
+            <span><small>服务状态</small><strong id="diagnosticConnection">等待检测</strong></span>
+            <span><small>最近测试</small><strong id="diagnosticLastTest">尚未测试</strong></span>
+            <span><small>运行日志</small><strong id="diagnosticLogCount">0 条</strong></span>
+          </div>
+        </div>
+        <div class="hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 17V9M10 17V5M15 17v-4M20 17V7"/><path d="m4 12 6-5 5 4 6-7"/></svg></div>
+      </section>
+      <details id="diagnostics" class="card diagnostics workspace-page" data-workspace="diagnostics" open>
+        <summary><div><span class="section-kicker">高级工具</span><strong id="searchHeading">外部搜索与诊断</strong><small>测试 MIoT 搜索匹配，查看最近运行记录</small></div><span class="summary-action">展开</span></summary>
+        <div class="diagnostics-content">
+        <div class="section-heading"><div><h2>外部搜索测试</h2></div><p>模拟 MIoT 搜索词，检查书籍匹配、章节定位和直接播放结果。</p></div>
+        <div class="search-row"><label class="field grow" for="searchKeyword"><span>模拟搜索词</span><input id="searchKeyword" placeholder="例如：继续播放明朝那些事儿 / 第十二集"></label><button id="testSearch" class="primary" type="button">测试搜索</button></div>
+        <div id="searchResult" class="result-panel empty-result"><strong>尚未测试</strong><span>输入一句实际会对音箱说的话，结果会显示在这里。</span></div>
+        <div class="subsection-heading"><div><h3>最近测试记录</h3><p>最多保留 50 条，仅用于排查匹配结果。</p></div><div class="compact-actions"><button id="refreshLogs" class="secondary" type="button">刷新日志</button><button id="clearLogs" class="text-button" type="button">清空日志</button></div></div>
+        <div id="searchLogs" class="log-list"><div class="empty-state compact"><strong>暂无搜索日志</strong><p>完成一次测试后，结果会显示在这里。</p></div></div>
+        </div>
+      </details>
+      <section class="card repository-card workspace-page" data-workspace="diagnostics" aria-labelledby="repositoryHeading">
+        <div class="repository-heading"><span class="section-kicker">项目信息</span><h2 id="repositoryHeading">GitHub 仓库</h2><p>查看源代码、版本发布、使用说明和问题反馈。</p></div>
+        <div class="repository-panel">
+          <div><p>永久插件标识：<code>audiobookshelf</code></p><a href="https://github.com/NeoHeee/songloft-plugin-audiobookshelf" target="_blank" rel="noopener noreferrer">https://github.com/NeoHeee/songloft-plugin-audiobookshelf</a></div>
+          <a class="secondary repository-button" href="https://github.com/NeoHeee/songloft-plugin-audiobookshelf" target="_blank" rel="noopener noreferrer">打开仓库</a>
+        </div>
+      </section>
+
+      <section class="hero workspace-page" data-workspace="library">
+        <div class="hero-copy"><span class="section-kicker">我的书库</span><h2>管理你的有声书世界</h2><p>查看收听进度，搜索书籍并按需同步到 Songloft。</p>
+          <div id="libraryStats" class="hero-metrics hidden" aria-live="polite"></div>
+        </div>
+        <div class="hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6.5A3.5 3.5 0 0 1 7.5 3H12v17H7.5A3.5 3.5 0 0 0 4 23.5v-17Z"/><path d="M20 6.5A3.5 3.5 0 0 0 16.5 3H12v17h4.5a3.5 3.5 0 0 1 3.5 3.5v-17Z"/><path d="M7.5 8.5h2M14.5 8.5h2M14.5 12h2"/></svg></div>
+      </section>
+      <section id="librarySection" class="library-section workspace-page" data-workspace="library" aria-labelledby="libraryHeading">
+        <div class="library-heading"><div><span class="section-kicker">书籍列表</span><h2 id="libraryHeading">全部有声书</h2><p>搜索、筛选并管理每一本书的同步状态。</p></div><button id="syncAll" class="secondary" type="button">增量同步全部</button></div>
+        <div id="libraryToolbar" class="library-toolbar hidden">
+          <label class="library-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="bookSearch" type="search" placeholder="搜索书名或作者"></label>
+          <label class="compact-field"><span>同步状态</span><select id="syncFilter"><option value="all">全部书籍</option><option value="synced">已同步</option><option value="unsynced">未同步</option></select></label>
+          <label class="compact-field"><span>排序</span><select id="bookSort"><option value="title">按书名</option><option value="progress">按收听进度</option><option value="recent">未听完优先</option></select></label>
+        </div>
+        <div id="syncSummary" class="sync-summary hidden" role="status" aria-live="polite"></div>
+        <div id="books" class="book-grid"><div class="empty-state"><div class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.8A3.8 3.8 0 0 1 8.8 1H19v18H8.8A3.8 3.8 0 0 0 5 22.8V4.8Z"/><path d="M9 7h6M9 11h6"/></svg></div><strong>书库尚未加载</strong><p>完成连接并选择书库后，点击“加载书库”。</p></div></div>
+        <div class="load-more-row"><button id="loadMore" class="secondary hidden" type="button">加载更多</button><span id="loadProgress" class="hidden"></span></div>
+      </section>
+    </main>
+  </div>
+  <div id="confirmDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="dialog-card"><div class="dialog-icon" aria-hidden="true">↻</div><h2 id="confirmTitle">确认操作</h2><p id="confirmMessage"></p><div class="dialog-actions"><button id="confirmCancel" class="secondary" type="button">取消</button><button id="confirmAccept" class="primary" type="button">确认</button></div></div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="static/js/app.js"></script>
 </body>
 </html>
