@@ -5,6 +5,9 @@ type ImportTitleFormat = 'source' | 'book-source' | 'book-index-source';
 type Config = {
   serverUrl: string;
   apiKey: string;
+  authMode?: 'api-key' | 'password';
+  username?: string;
+  refreshToken?: string;
   libraryId?: string;
   playbackPreference?: 'resume' | 'from-start';
   importTitleFormat?: ImportTitleFormat;
@@ -30,6 +33,8 @@ const SEARCH_PATH = '/api/search/topone';
 const SEARCH_LOG_KEY = 'abs_search_logs_v1';
 const MAX_SEARCH_LOGS = 50;
 const LAST_PLAY_KEY = 'abs_last_direct_play_v1';
+const PLAY_HISTORY_KEY = 'abs_play_history_v1';
+const MAX_PLAY_HISTORY = 50;
 const DEFAULT_IMPORT_TITLE_FORMAT: ImportTitleFormat = 'book-index-source';
 
 function importTitleFormat(value: unknown): ImportTitleFormat {
@@ -333,6 +338,9 @@ async function getConfig(requireKey = true): Promise<Config> {
   const config: Config = {
     serverUrl: cleanUrl(saved.serverUrl || DEFAULT_SERVER_URL),
     apiKey: String(saved.apiKey || ''),
+    authMode: saved.authMode === 'password' ? 'password' : 'api-key',
+    username: String(saved.username || ''),
+    refreshToken: String(saved.refreshToken || ''),
     libraryId: saved.libraryId,
     playbackPreference: saved.playbackPreference === 'from-start' ? 'from-start' : 'resume',
     importTitleFormat: importTitleFormat(saved.importTitleFormat),
@@ -346,19 +354,75 @@ async function getSyncRecords(): Promise<Record<string, SyncRecord>> {
   return (await songloft.persistentStorage.get(SYNC_KEY) || {}) as Record<string, SyncRecord>;
 }
 
-async function absFetch(path: string, init: AnyMap = {}): Promise<any> {
-  const config = await getConfig();
-  const response = await fetch(config.serverUrl + path, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'X-Fetch-Timeout-Ms': '15000',
-      ...(init.headers || {})
-    }
+function authTokens(payload: AnyMap): { accessToken: string; refreshToken: string; username: string } {
+  const user = payload?.user || {};
+  return {
+    accessToken: String(user.accessToken || user.token || payload?.accessToken || payload?.token || ''),
+    refreshToken: String(user.refreshToken || payload?.refreshToken || ''),
+    username: String(user.username || payload?.username || '')
+  };
+}
+
+async function loginWithPassword(serverUrl: string, username: string, password: string): Promise<{ accessToken: string; refreshToken: string; username: string }> {
+  const response = await fetch(`${serverUrl}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Fetch-Timeout-Ms': '15000', 'x-return-tokens': 'true' },
+    body: JSON.stringify({ username, password })
   });
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) throw new Error('API 密钥无效、已停用或无权访问该书库');
+    if (response.status === 401) throw new Error('Audiobookshelf 用户名或密码错误');
+    throw new Error(`Audiobookshelf 登录失败：${response.status} ${response.statusText || ''}`.trim());
+  }
+  const tokens = authTokens(await response.json());
+  if (!tokens.accessToken) throw new Error('Audiobookshelf 登录成功，但没有返回访问令牌');
+  return tokens;
+}
+
+let refreshPromise: Promise<Config> | null = null;
+
+async function refreshPasswordToken(config: Config): Promise<Config> {
+  if (!config.refreshToken) throw new Error('Audiobookshelf 登录已过期，请重新输入账号密码');
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const response = await fetch(`${config.serverUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Fetch-Timeout-Ms': '15000', 'x-refresh-token': config.refreshToken || '' }
+    });
+    if (!response.ok) throw new Error('Audiobookshelf 登录已过期，请重新输入账号密码');
+    const tokens = authTokens(await response.json());
+    if (!tokens.accessToken) throw new Error('Audiobookshelf 刷新登录失败，请重新输入账号密码');
+    const next: Config = {
+      ...config,
+      apiKey: tokens.accessToken,
+      refreshToken: tokens.refreshToken || config.refreshToken,
+      username: tokens.username || config.username
+    };
+    await songloft.persistentStorage.set(CONFIG_KEY, next);
+    return next;
+  })();
+  try { return await refreshPromise; } finally { refreshPromise = null; }
+}
+
+async function getPlaybackHistory(): Promise<AnyMap[]> {
+  const stored = await songloft.persistentStorage.get(PLAY_HISTORY_KEY);
+  return Array.isArray(stored) ? stored : [];
+}
+
+async function absFetch(path: string, init: AnyMap = {}): Promise<any> {
+  let config = await getConfig();
+  const request = (activeConfig: Config) => fetch(activeConfig.serverUrl + path, {
+    ...init,
+    headers: { Authorization: `Bearer ${activeConfig.apiKey}`, 'Content-Type': 'application/json', 'X-Fetch-Timeout-Ms': '15000', ...(init.headers || {}) }
+  });
+  let response = await request(config);
+  if (response.status === 401 && config.authMode === 'password' && config.refreshToken) {
+    config = await refreshPasswordToken(config);
+    response = await request(config);
+  }
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(config.authMode === 'password' ? 'Audiobookshelf 登录已失效或无权访问该书库' : 'API 密钥无效、已停用或无权访问该书库');
+    }
     throw new Error(`Audiobookshelf 返回 ${response.status} ${response.statusText || ''}`.trim());
   }
   const contentType = String(response.headers?.get?.('content-type') || '');
@@ -591,6 +655,9 @@ router.get('/api/config', async () => {
     serverUrl: config.serverUrl || DEFAULT_SERVER_URL,
     libraryId: config.libraryId || '',
     hasApiKey: Boolean(config.apiKey),
+    hasCredential: Boolean(config.apiKey),
+    authMode: config.authMode || 'api-key',
+    username: config.username || '',
     playbackPreference: config.playbackPreference || 'resume',
     importTitleFormat: importTitleFormat(config.importTitleFormat),
     pauseLocalOnPush: config.pauseLocalOnPush !== false
@@ -601,9 +668,37 @@ router.post('/api/config', async (req) => {
   try {
     const body = JSON.parse(String(req.body || '{}'));
     const previous = await getConfig(false);
+    const serverUrl = cleanUrl(body.serverUrl || previous.serverUrl || DEFAULT_SERVER_URL);
+    const authMode = body.authMode === 'password' ? 'password' : body.authMode === 'api-key' ? 'api-key' : (previous.authMode || 'api-key');
+    const serverChanged = serverUrl !== previous.serverUrl;
+    let apiKey = previous.apiKey;
+    let refreshToken = previous.refreshToken || '';
+    let username = previous.username || '';
+    if (authMode === 'password') {
+      const requestedUsername = String(body.username || username || '').trim();
+      const password = String(body.password || '');
+      if (password) {
+        if (!requestedUsername) throw new Error('用户名不能为空');
+        const tokens = await loginWithPassword(serverUrl, requestedUsername, password);
+        apiKey = tokens.accessToken;
+        refreshToken = tokens.refreshToken;
+        username = tokens.username || requestedUsername;
+      } else if (previous.authMode !== 'password' || serverChanged || !apiKey) {
+        throw new Error('请输入 Audiobookshelf 用户名和密码');
+      }
+    } else {
+      const requestedKey = String(body.apiKey || '').trim();
+      if (requestedKey) apiKey = requestedKey;
+      else if (previous.authMode !== 'api-key' || serverChanged || !apiKey) throw new Error('API 密钥不能为空');
+      username = '';
+      refreshToken = '';
+    }
     const config: Config = {
-      serverUrl: cleanUrl(body.serverUrl || DEFAULT_SERVER_URL),
-      apiKey: String(body.apiKey || previous.apiKey || '').trim(),
+      serverUrl,
+      apiKey,
+      authMode,
+      username,
+      refreshToken,
       libraryId: String(body.libraryId || previous.libraryId || ''),
       playbackPreference: body.playbackPreference === 'from-start' ? 'from-start' : (previous.playbackPreference || 'resume'),
       importTitleFormat: body.importTitleFormat === undefined
@@ -611,7 +706,7 @@ router.post('/api/config', async (req) => {
         : importTitleFormat(body.importTitleFormat),
       pauseLocalOnPush: body.pauseLocalOnPush === undefined ? previous.pauseLocalOnPush !== false : body.pauseLocalOnPush !== false
     };
-    if (!config.serverUrl || !config.apiKey) throw new Error('服务器地址和 API 密钥不能为空');
+    if (!config.serverUrl || !config.apiKey) throw new Error('服务器地址和认证信息不能为空');
     await songloft.persistentStorage.set(CONFIG_KEY, config);
     return jsonResponse({ ok: true });
   } catch (error) { return safeError(error); }
@@ -711,6 +806,63 @@ router.get('/api/items/:id/playback', async (_req, params) => {
       startChapterIndex,
       startPosition: Math.floor(selected.offset || 0)
     });
+  } catch (error) { return safeError(error); }
+});
+
+router.get('/api/play-history', async () => {
+  try {
+    const config = await getConfig(false);
+    const history = await getPlaybackHistory();
+    return jsonResponse({
+      ok: true,
+      items: history.map(entry => ({
+        ...entry,
+        coverUrl: config.apiKey && entry.itemId ? coverUrl(config, String(entry.itemId)) : ''
+      }))
+    });
+  } catch (error) { return safeError(error); }
+});
+
+router.post('/api/play-history', async (req) => {
+  try {
+    const body = JSON.parse(String(req.body || '{}')) as AnyMap;
+    const itemId = String(body.itemId || '').trim();
+    if (!itemId) throw new Error('缺少有声书标识');
+    const history = await getPlaybackHistory();
+    const entry = {
+      itemId,
+      title: String(body.title || '未命名有声书').slice(0, 300),
+      author: String(body.author || '未知作者').slice(0, 300),
+      trackIndex: Math.max(0, Number(body.trackIndex || 0)),
+      chapterIndex: Math.max(-1, Number(body.chapterIndex ?? -1)),
+      trackTitle: String(body.trackTitle || '').slice(0, 500),
+      chapterTitle: String(body.chapterTitle || '').slice(0, 500),
+      positionSeconds: Math.max(0, Number(body.positionSeconds || 0)),
+      duration: Math.max(0, Number(body.duration || 0)),
+      mode: body.mode === 'speaker' ? 'speaker' : 'local',
+      deviceName: body.mode === 'speaker' ? String(body.deviceName || '').slice(0, 200) : '',
+      playedAt: new Date().toISOString()
+    };
+    const next = [entry, ...history.filter(item => String(item.itemId) !== itemId)].slice(0, MAX_PLAY_HISTORY);
+    await songloft.persistentStorage.set(PLAY_HISTORY_KEY, next);
+    return jsonResponse({ ok: true, item: entry, count: next.length });
+  } catch (error) { return safeError(error); }
+});
+
+router.post('/api/play-history/remove/:id', async (_req, params) => {
+  try {
+    const itemId = String(params.id || '');
+    const history = await getPlaybackHistory();
+    const next = history.filter(item => String(item.itemId) !== itemId);
+    await songloft.persistentStorage.set(PLAY_HISTORY_KEY, next);
+    return jsonResponse({ ok: true, count: next.length });
+  } catch (error) { return safeError(error); }
+});
+
+router.post('/api/play-history/clear', async () => {
+  try {
+    await songloft.persistentStorage.set(PLAY_HISTORY_KEY, []);
+    return jsonResponse({ ok: true });
   } catch (error) { return safeError(error); }
 });
 
@@ -830,7 +982,7 @@ router.post('/api/music/url', createMusicUrlHandler({
 }));
 
 async function onInit(): Promise<void> {
-  songloft.log.info('Audiobookshelf plugin v0.8.1 initialized');
+  songloft.log.info('Audiobookshelf plugin v0.9.0 initialized');
   await registerToMiot();
 }
 async function onDeinit(): Promise<void> {
