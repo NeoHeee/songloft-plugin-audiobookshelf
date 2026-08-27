@@ -6,9 +6,9 @@
 
 ## 下载
 
-当前版本：**v0.6.1**
+当前版本：**v0.7.0**
 
-[下载 Audiobookshelf 插件 v0.6.1](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.6.1/audiobookshelf.jsplugin.zip)
+[下载 Audiobookshelf 插件 v0.7.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.7.0/audiobookshelf.jsplugin.zip)
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
@@ -111,6 +111,14 @@ http://192.168.1.1:13378
 - Songloft V2.11.0 尚未向 JS 插件开放播放位置、暂停和结束事件，因此插件暂时无法将智能音箱的实时播放进度自动回传至 Audiobookshelf。
 
 ## 版本说明
+
+### v0.7.0
+
+- 重新设计管理界面，统一浅色、深色和移动端视觉
+- 新增书库、连接与设置、运行诊断三个独立工作区
+- 新增书库搜索、筛选、排序、统计和分批加载
+- 新增同步确认、结果摘要、错误重试和封面失败兜底
+- 新增工作区及筛选状态保存和 GitHub 项目信息卡片
 
 ### v0.6.1
 
