@@ -6,9 +6,9 @@
 
 ## 下载
 
-当前版本：**v0.7.0**
+当前版本：**v0.8.0**
 
-[下载 Audiobookshelf 插件 v0.7.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.7.0/audiobookshelf.jsplugin.zip)
+[下载 ABS书库插件 v0.8.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.8.0/audiobookshelf.jsplugin.zip)
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
@@ -111,6 +111,16 @@ http://192.168.1.1:13378
 - Songloft V2.11.0 尚未向 JS 插件开放播放位置、暂停和结束事件，因此插件暂时无法将智能音箱的实时播放进度自动回传至 Audiobookshelf。
 
 ## 版本说明
+
+### v0.8.0
+
+- 侧边栏名称调整为“ABS书库”，新增独立书库图标
+- 新增页面内直接播放、上一集、下一集和连续播放
+- 新增独立播放工作区，支持 M4B 章节与多文件目录选择
+- 导入时可选择仅写入歌曲库，或同时生成同名歌单
+- 新增 MIoT 设备选择、音频推送、暂停、继续、停止和状态查询
+- 新增“推送后暂停本机”设置，默认开启
+- 优化播放器显示期间的操作提示位置，避免相互遮挡
 
 ### v0.7.0
 
