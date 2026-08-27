@@ -6,9 +6,9 @@
 
 ## 下载
 
-当前版本：**v0.7.0**
+当前版本：**v0.8.0**
 
-[下载 Audiobookshelf 插件 v0.7.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.7.0/audiobookshelf.jsplugin.zip)
+[下载 Audiobookshelf 插件 v0.8.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.8.0/audiobookshelf.jsplugin.zip)
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
@@ -18,6 +18,9 @@
 
 - 自动注册为 MIoT 外部搜索源
 - 不导入 Songloft，搜索后直接推送音频地址至智能音箱
+- 在插件书库页面直接播放，支持上一集、下一集和多文件连续播放
+- 页面播放默认按 Audiobookshelf 进度续播，也可设置为从头播放
+- 可从播放页面选择 MIoT 智能音箱并推送当前音频，支持暂停、继续、停止和状态查询
 - 支持书名、作者、演播者、副标题和系列名综合匹配
 - 支持同名书籍排序，优先选择正在收听的版本
 - 提供外部搜索测试工具和最近 50 条搜索日志
@@ -45,11 +48,13 @@
 - 可计算章节和续播位置在文件内的准确秒数
 - 提供“优先继续收听”和“默认从头播放”两种点播策略
 
+> MIoT 的直接 URL 推送目前不支持指定文件内起播秒数。多文件有声书可准确推送所选音频；单文件 M4B 推送到音箱后仍会从文件开头播放。
+
 ### Songloft 兼容导入
 
 如需在 Songloft 内浏览或使用歌单，仍可启用兼容导入模式：
 
-- 一本书对应一个 Songloft 歌单
+- 首次导入时可选择仅写入歌曲库，或同时生成一本书对应的同名歌单
 - 重复导入自动去重
 - 单本有声书检查更新
 - 整个书库增量同步
@@ -102,6 +107,16 @@ http://192.168.1.1:13378
 - Songloft V2.11.0 尚未向 JS 插件开放播放位置、暂停和结束事件，因此插件暂时无法将智能音箱的实时播放进度自动回传至 Audiobookshelf。
 
 ## 版本说明
+
+### v0.8.0
+
+- 侧边栏名称调整为“ABS书库”，新增独立书库图标
+- 新增页面内直接播放、上一集、下一集和连续播放
+- 新增独立播放工作区，支持 M4B 章节与多文件目录选择
+- 导入时可选择仅写入歌曲库，或同时生成同名歌单
+- 新增 MIoT 设备选择、音频推送、暂停、继续、停止和状态查询
+- 新增“推送后暂停本机”设置，默认开启
+- 优化播放器显示期间的操作提示位置，避免相互遮挡
 
 ### v0.7.0
 

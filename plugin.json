@@ -1,13 +1,14 @@
 {
   "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
-  "name": "Audiobookshelf 书库",
-  "version": "0.7.0",
+  "name": "ABS书库",
+  "version": "0.8.0",
   "description": "Audiobookshelf 有声书外部搜索源，支持 M4B 章节、系列册数、语音点播、续播定位、MIoT 不入库直播放及兼容导入模式",
   "author": "NeoHeee",
   "homepage": "https://github.com/NeoHeee/songloft-plugin-audiobookshelf",
   "license": "MIT",
   "entryPath": "audiobookshelf",
   "main": "main.js",
+  "icon": "icon.svg",
   "minHostVersion": "2.11.0",
   "permissions": [
     "persistent-storage",
@@ -18,7 +19,7 @@
     "inter-plugin"
   ],
   "updateUrl": "",
-  "download_url": "https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.7.0/audiobookshelf.jsplugin.zip",
+  "download_url": "https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.8.0/audiobookshelf.jsplugin.zip",
   "entryHash": "",
   "zipHash": ""
 }

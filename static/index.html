@@ -24,7 +24,7 @@
             <svg viewBox="0 0 24 24" fill="none"><path d="M5 4.8A3.8 3.8 0 0 1 8.8 1H19v18H8.8A3.8 3.8 0 0 0 5 22.8V4.8Z"/><path d="M5 5a4 4 0 0 1 4-4M9 6h6M9 10h6M9 14h4"/></svg>
           </div>
           <div class="brand-copy">
-            <div class="brand-row"><h1>Audiobookshelf 有声书</h1><span class="version-badge">v0.7.0</span></div>
+            <div class="brand-row"><h1>Audiobookshelf 有声书</h1><span class="version-badge">v0.8.0</span></div>
             <p>连接私人书库 · 续播有声世界</p>
           </div>
         </div>
@@ -45,6 +45,7 @@
     <main>
       <nav class="workspace-nav" aria-label="主要功能">
         <button type="button" data-view="library"><svg viewBox="0 0 24 24"><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H12v18H7.5A3.5 3.5 0 0 0 4 23.5v-18Z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H12v18h4.5a3.5 3.5 0 0 1 3.5 3.5v-18Z"/></svg><span>书库</span></button>
+        <button type="button" data-view="player"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4V8Z"/></svg><span>播放</span></button>
         <button type="button" data-view="settings" class="active"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg><span>连接与设置</span></button>
         <button type="button" data-view="diagnostics"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3"/><path d="m3 14 7-6 6 3 6-6"/></svg><span>运行诊断</span></button>
       </nav>
@@ -80,6 +81,7 @@
           <label class="field" for="library"><span>有声书书库</span><select id="library"><option value="">请先测试连接</option></select></label>
           <label class="field" for="playbackPreference"><span>默认点播方式</span><select id="playbackPreference"><option value="resume">优先继续收听</option><option value="from-start">默认从头播放</option></select></label>
           <label class="field field-wide" for="importTitleFormat"><span>导入歌曲标题格式</span><select id="importTitleFormat"><option value="source">源文件名（例：001前言01.m4a）</option><option value="book-source">书名 - 源文件标题（例：Dark Mirror|美国黑镜 - 001前言01）</option><option value="book-index-source">书名 - 序号 - 源文件名（兼容旧格式）</option></select></label>
+          <label class="setting-toggle field-wide" for="pauseLocalOnPush"><input id="pauseLocalOnPush" type="checkbox" checked><span><strong>推送后暂停本机</strong><small>智能音箱开始播放后自动暂停页面播放器，避免两处同时出声。</small></span></label>
         </div>
         <div class="action-row"><button id="load" class="primary" type="button">保存设置并加载书库</button></div>
         <div class="info-note"><span aria-hidden="true">i</span><p>修改标题格式后，对已导入的书执行“检查更新”或“增量同步全部”即可更新歌曲标题。MIoT 中建议开启“不入库直接播放”。</p></div>
@@ -119,8 +121,39 @@
         </div>
         <div class="hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6.5A3.5 3.5 0 0 1 7.5 3H12v17H7.5A3.5 3.5 0 0 0 4 23.5v-17Z"/><path d="M20 6.5A3.5 3.5 0 0 0 16.5 3H12v17h4.5a3.5 3.5 0 0 1 3.5 3.5v-17Z"/><path d="M7.5 8.5h2M14.5 8.5h2M14.5 12h2"/></svg></div>
       </section>
+
+      <section class="workspace-page player-page" data-workspace="player">
+        <div id="playerEmpty" class="card player-empty"><div class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4V8Z"/></svg></div><strong>还没有选择有声书</strong><p>从书库点击“播放”，这里会显示书籍信息和完整目录。</p><button class="primary" type="button" data-go-library>前往书库</button></div>
+        <div id="playerDetail" class="hidden">
+          <section class="player-hero card">
+            <img id="detailCover" src="" alt="有声书封面">
+            <div class="player-hero-copy"><span class="section-kicker">正在播放</span><h2 id="detailTitle">未选择有声书</h2><p id="detailAuthor"></p><div class="progress-track detail-progress"><span id="detailProgressBar"></span></div><small id="detailProgressText">尚无收听进度</small></div>
+            <button id="detailResume" class="primary" type="button">继续播放</button>
+          </section>
+          <section class="card speaker-card" aria-labelledby="speakerHeading">
+            <div class="section-heading"><div><span class="section-kicker">智能音箱</span><h2 id="speakerHeading">推送到 MIoT 音箱</h2></div><p>把当前目录项的音频地址直接发送到已配置的智能音箱，不会导入 Songloft。</p></div>
+            <div class="speaker-toolbar">
+              <label class="field grow" for="speakerDevice"><span>播放设备</span><select id="speakerDevice"><option value="">点击刷新设备</option></select></label>
+              <button id="refreshSpeakers" class="secondary" type="button">刷新设备</button>
+              <button id="pushToSpeaker" class="primary" type="button">推送当前音频</button>
+            </div>
+            <div class="speaker-controls">
+              <button type="button" class="secondary" data-speaker-action="pause">暂停</button>
+              <button type="button" class="secondary" data-speaker-action="resume">继续</button>
+              <button type="button" class="secondary" data-speaker-action="stop">停止</button>
+              <button id="refreshSpeakerStatus" type="button" class="text-button">刷新状态</button>
+              <span id="speakerStatus" class="speaker-status">尚未连接 MIoT 设备</span>
+            </div>
+            <div class="info-note speaker-note"><span aria-hidden="true">i</span><p>多文件有声书可准确推送当前音频。单文件 M4B 暂不支持推送后跳到文件内章节，音箱会从该文件开头播放。</p></div>
+          </section>
+          <section class="card directory-card">
+            <div class="section-heading"><div><span class="section-kicker">播放目录</span><h2 id="directoryHeading">章节目录</h2></div><p id="directorySummary">选择章节开始播放</p></div>
+            <div id="directoryList" class="directory-list"></div>
+          </section>
+        </div>
+      </section>
       <section id="librarySection" class="library-section workspace-page" data-workspace="library" aria-labelledby="libraryHeading">
-        <div class="library-heading"><div><span class="section-kicker">书籍列表</span><h2 id="libraryHeading">全部有声书</h2><p>搜索、筛选并管理每一本书的同步状态。</p></div><button id="syncAll" class="secondary" type="button">增量同步全部</button></div>
+        <div class="library-heading"><div><span class="section-kicker">书籍列表</span><h2 id="libraryHeading">全部有声书</h2><p>直接播放不会写入 Songloft；需要长期管理时再选择导入。</p></div><button id="syncAll" class="secondary" type="button">增量同步全部</button></div>
         <div id="libraryToolbar" class="library-toolbar hidden">
           <label class="library-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="bookSearch" type="search" placeholder="搜索书名或作者"></label>
           <label class="compact-field"><span>同步状态</span><select id="syncFilter"><option value="all">全部书籍</option><option value="synced">已同步</option><option value="unsynced">未同步</option></select></label>
@@ -134,6 +167,20 @@
   </div>
   <div id="confirmDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
     <div class="dialog-card"><div class="dialog-icon" aria-hidden="true">↻</div><h2 id="confirmTitle">确认操作</h2><p id="confirmMessage"></p><div class="dialog-actions"><button id="confirmCancel" class="secondary" type="button">取消</button><button id="confirmAccept" class="primary" type="button">确认</button></div></div>
+  </div>
+  <div id="importDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="importDialogTitle">
+    <div class="dialog-card import-dialog-card">
+      <div class="dialog-icon" aria-hidden="true">＋</div>
+      <h2 id="importDialogTitle">导入到 Songloft</h2>
+      <p id="importDialogMessage">音频将写入 Songloft 歌曲库。</p>
+      <label class="import-option" for="importCreatePlaylist"><input id="importCreatePlaylist" type="checkbox" checked><span><strong>同时生成同名歌单</strong><small>一本书对应一个歌单，后续可继续增量同步。</small></span></label>
+      <div class="dialog-actions"><button id="importCancel" class="secondary" type="button">取消</button><button id="importAccept" class="primary" type="button">确认导入</button></div>
+    </div>
+  </div>
+  <div id="playerDock" class="player-dock hidden" aria-live="polite">
+    <img id="playerCover" src="" alt="当前播放封面">
+    <div class="player-copy"><strong id="playerTitle">未在播放</strong><span id="playerMeta">从书库选择一本有声书开始播放</span></div>
+    <div class="player-controls"><button id="playerPrevious" class="icon-button" type="button" title="上一集" aria-label="上一集">‹</button><audio id="previewAudio" controls preload="metadata"></audio><button id="playerNext" class="icon-button" type="button" title="下一集" aria-label="下一集">›</button><button id="closePlayer" class="icon-button" type="button" title="关闭播放器" aria-label="关闭播放器">×</button></div>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="static/js/app.js"></script>
