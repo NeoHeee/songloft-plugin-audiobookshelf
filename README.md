@@ -6,9 +6,9 @@
 
 ## 下载
 
-当前版本：**v0.8.0**
+当前版本：**v0.8.1**
 
-[下载 Audiobookshelf 插件 v0.8.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.8.0/audiobookshelf.jsplugin.zip)
+[下载 ABS书库插件 v0.8.1](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.8.1/audiobookshelf.jsplugin.zip)
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
@@ -55,6 +55,7 @@
 如需在 Songloft 内浏览或使用歌单，仍可启用兼容导入模式：
 
 - 首次导入时可选择仅写入歌曲库，或同时生成一本书对应的同名歌单
+- 已选择“仅歌曲”的书籍可随时通过“创建歌单”补建同名歌单，不会重复创建歌曲
 - 重复导入自动去重
 - 单本有声书检查更新
 - 整个书库增量同步
@@ -107,6 +108,13 @@ http://192.168.1.1:13378
 - Songloft V2.11.0 尚未向 JS 插件开放播放位置、暂停和结束事件，因此插件暂时无法将智能音箱的实时播放进度自动回传至 Audiobookshelf。
 
 ## 版本说明
+
+### v0.8.1
+
+- 区分未同步、仅导入歌曲和已建立歌单三种状态
+- 为仅导入歌曲的书籍增加“创建歌单”入口
+- 补建同名歌单时复用现有歌曲，不会重复创建歌曲
+- 将“检查更新”与歌单管理拆分，避免操作入口含义不清
 
 ### v0.8.0
 

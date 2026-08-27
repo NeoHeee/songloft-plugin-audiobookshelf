@@ -282,14 +282,19 @@ function renderLibrary() {
   $('books').innerHTML = books.length ? books.map(book => {
     const percent = getProgressPercent(book);
     const progress = progressText(book.progress, book.duration);
-    const sync = book.sync ? `已同步 ${book.sync.songCount} 个音频` : '尚未同步';
+    const sync = book.sync
+      ? `已同步 ${book.sync.songCount} 个音频 · ${book.sync.hasPlaylist ? '已建歌单' : '仅歌曲'}`
+      : '尚未同步';
+    const importActions = book.sync
+      ? `<button class="secondary" data-sync="${escapeHtml(book.id)}">检查更新</button>${book.sync.hasPlaylist ? '' : `<button class="primary" data-import="${escapeHtml(book.id)}">创建歌单</button>`}`
+      : `<button class="primary" data-import="${escapeHtml(book.id)}">导入</button>`;
     return `<article class="book-card">
       <img class="book-cover" src="${book.coverUrl}" alt="${escapeHtml(book.title)}封面" loading="lazy">
       <div class="book-body"><h3 class="book-title">${escapeHtml(book.title)}</h3><p class="book-author">${escapeHtml(book.author || '未知作者')}</p>
       <p class="book-meta">${formatTime(book.duration)} · ${escapeHtml(progress)}</p>
       <div class="progress-track" title="收听进度 ${percent}%"><span style="width:${percent}%"></span></div>
       <div class="book-actions"><span class="sync-badge ${book.sync ? '' : 'muted'}">${escapeHtml(sync)}</span></div>
-      <div class="book-action-buttons"><button class="secondary play-button" data-play="${escapeHtml(book.id)}">播放</button><button class="${book.sync ? 'secondary' : 'primary'}" data-import="${escapeHtml(book.id)}">${book.sync ? '检查更新' : '导入'}</button></div></div>
+      <div class="book-action-buttons ${book.sync && !book.sync.hasPlaylist ? 'has-three-actions' : ''}"><button class="secondary play-button" data-play="${escapeHtml(book.id)}">播放</button>${importActions}</div></div>
     </article>`;
   }).join('') : libraryLoaded && libraryTotal === 0
     ? '<div class="empty-state"><strong>这个书库暂时没有有声书</strong><p>在 Audiobookshelf 中添加内容后重新加载。</p></div>'
@@ -309,17 +314,22 @@ async function saveImportOptions() {
 
 function openImportDialog(id, button) {
   const book = booksState.find(item => String(item.id) === String(id));
-  if (book?.sync) return importBook(id, button, Boolean(book.sync.hasPlaylist));
   pendingImport = { id, button };
-  $('importDialogTitle').textContent = `导入《${book?.title || '有声书'}》`;
-  $('importDialogMessage').textContent = '音频会写入 Songloft 歌曲库；是否生成同名歌单由你决定。';
+  const supplementPlaylist = Boolean(book?.sync && !book.sync.hasPlaylist);
+  $('importDialogTitle').textContent = supplementPlaylist ? `为《${book?.title || '有声书'}》创建歌单` : `导入《${book?.title || '有声书'}》`;
+  $('importDialogMessage').textContent = supplementPlaylist
+    ? '已导入的歌曲不会重复创建，将整理到新建的同名歌单中。'
+    : '音频会写入 Songloft 歌曲库；是否生成同名歌单由你决定。';
   $('importCreatePlaylist').checked = true;
+  $('importCreatePlaylist').disabled = supplementPlaylist;
+  $('importAccept').textContent = supplementPlaylist ? '创建歌单' : '确认导入';
   $('importDialog').classList.remove('hidden');
   $('importAccept').focus();
 }
 
 function closeImportDialog(accepted) {
   $('importDialog').classList.add('hidden');
+  $('importCreatePlaylist').disabled = false;
   const current = pendingImport;
   pendingImport = null;
   if (accepted && current) importBook(current.id, current.button, $('importCreatePlaylist').checked);
@@ -654,6 +664,10 @@ $('books').addEventListener('click', e => {
   if (!button) return;
   if (button.dataset.play) playBook(button.dataset.play, button);
   if (button.dataset.import) openImportDialog(button.dataset.import, button);
+  if (button.dataset.sync) {
+    const book = booksState.find(item => String(item.id) === String(button.dataset.sync));
+    importBook(button.dataset.sync, button, Boolean(book?.sync?.hasPlaylist));
+  }
 });
 $('books').addEventListener('error', e => {
   if (e.target.matches('.book-cover') && e.target.src !== COVER_PLACEHOLDER) {
