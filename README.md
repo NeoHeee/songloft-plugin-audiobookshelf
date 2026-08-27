@@ -6,9 +6,9 @@
 
 ## 下载
 
-当前版本：**v0.9.0**
+当前版本：**v0.9.1**
 
-[下载 ABS书库插件 v0.9.0](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.9.0/audiobookshelf.jsplugin.zip)
+[下载 ABS书库插件 v0.9.1](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.9.1/audiobookshelf.jsplugin.zip)
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
@@ -64,6 +64,8 @@
 
 - 首次导入时可选择仅写入歌曲库，或同时生成一本书对应的同名歌单
 - 已选择“仅歌曲”的书籍可随时通过“创建歌单”补建同名歌单，不会重复创建歌曲
+- 歌单名称前缀默认开启，格式为“【有声书】书名”，也可在设置中关闭
+- 修改前缀设置后再次检查更新，可直接调整插件已关联的歌单名称
 - 重复导入自动去重
 - 单本有声书检查更新
 - 整个书库增量同步
@@ -77,9 +79,10 @@
 3. 填写 Audiobookshelf 地址，选择“API 密钥”或“账号密码”并完成连接，然后选择有声书书库。
 4. 选择默认点播策略：“优先继续收听”或“默认从头播放”。
 5. 选择导入歌曲标题格式；修改后再次检查更新即可为已导入歌曲改名。
-6. 安装并启用新版 Songloft MIoT 插件。
-7. 在 MIoT 插件的“外部搜索”中选择“Audiobookshelf 有声书”。
-8. 开启“外部搜索”和“不入库直接播放”。
+6. 按需开启“有声书歌单名称前缀”；默认使用“【有声书】书名”，便于和音乐歌单区分。
+7. 安装并启用新版 Songloft MIoT 插件。
+8. 在 MIoT 插件的“外部搜索”中选择“Audiobookshelf 有声书”。
+9. 开启“外部搜索”和“不入库直接播放”。
 
 默认 Audiobookshelf 地址：
 
@@ -118,6 +121,13 @@ http://192.168.1.1:13378
 - Songloft V2.11.0 尚未向 JS 插件开放播放位置、暂停和结束事件，因此插件暂时无法将智能音箱的实时播放进度自动回传至 Audiobookshelf。
 
 ## 版本说明
+
+### v0.9.1
+
+- 新增可开关的“有声书歌单名称前缀”设置，默认格式为“【有声书】书名”
+- 单本检查更新或全库增量同步时，可重命名插件已关联的歌单
+- 前缀开关变化后复用原歌单与歌曲，不会产生重复内容
+- ABS书库继续支持独立浏览和直接播放，仅在需要 Songloft 管理时导入
 
 ### v0.9.0
 

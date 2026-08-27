@@ -24,7 +24,7 @@
             <svg viewBox="0 0 24 24" fill="none"><path d="M5 4.8A3.8 3.8 0 0 1 8.8 1H19v18H8.8A3.8 3.8 0 0 0 5 22.8V4.8Z"/><path d="M5 5a4 4 0 0 1 4-4M9 6h6M9 10h6M9 14h4"/></svg>
           </div>
           <div class="brand-copy">
-            <div class="brand-row"><h1>Audiobookshelf 有声书</h1><span class="version-badge">v0.9.0</span></div>
+            <div class="brand-row"><h1>Audiobookshelf 有声书</h1><span class="version-badge">v0.9.1</span></div>
             <p>连接私人书库 · 续播有声世界</p>
           </div>
         </div>
@@ -85,10 +85,11 @@
           <label class="field" for="library"><span>有声书书库</span><select id="library"><option value="">请先测试连接</option></select></label>
           <label class="field" for="playbackPreference"><span>默认点播方式</span><select id="playbackPreference"><option value="resume">优先继续收听</option><option value="from-start">默认从头播放</option></select></label>
           <label class="field field-wide" for="importTitleFormat"><span>导入歌曲标题格式</span><select id="importTitleFormat"><option value="source">源文件名（例：001前言01.m4a）</option><option value="book-source">书名 - 源文件标题（例：Dark Mirror|美国黑镜 - 001前言01）</option><option value="book-index-source">书名 - 序号 - 源文件名（兼容旧格式）</option></select></label>
+          <label class="setting-toggle field-wide" for="playlistNamePrefixEnabled"><input id="playlistNamePrefixEnabled" type="checkbox" checked><span><strong>有声书歌单名称前缀</strong><small>开启后使用“【有声书】书名”，便于和音乐歌单区分；关闭后仅使用原书名。</small></span></label>
           <label class="setting-toggle field-wide" for="pauseLocalOnPush"><input id="pauseLocalOnPush" type="checkbox" checked><span><strong>推送后暂停本机</strong><small>智能音箱开始播放后自动暂停页面播放器，避免两处同时出声。</small></span></label>
         </div>
         <div class="action-row"><button id="load" class="primary" type="button">保存设置并加载书库</button></div>
-        <div class="info-note"><span aria-hidden="true">i</span><p>修改标题格式后，对已导入的书执行“检查更新”或“增量同步全部”即可更新歌曲标题。MIoT 中建议开启“不入库直接播放”。</p></div>
+        <div class="info-note"><span aria-hidden="true">i</span><p>修改歌曲标题或歌单前缀后，对已导入的书执行“检查更新”或“增量同步全部”即可更新现有名称。MIoT 中建议开启“不入库直接播放”。</p></div>
       </section>
 
       <section class="hero workspace-page" data-workspace="diagnostics">

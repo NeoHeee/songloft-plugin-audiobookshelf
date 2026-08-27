@@ -12,6 +12,7 @@ type Config = {
   playbackPreference?: 'resume' | 'from-start';
   importTitleFormat?: ImportTitleFormat;
   pauseLocalOnPush?: boolean;
+  playlistNamePrefixEnabled?: boolean;
 };
 type AnyMap = Record<string, any>;
 type SyncRecord = {
@@ -344,7 +345,8 @@ async function getConfig(requireKey = true): Promise<Config> {
     libraryId: saved.libraryId,
     playbackPreference: saved.playbackPreference === 'from-start' ? 'from-start' : 'resume',
     importTitleFormat: importTitleFormat(saved.importTitleFormat),
-    pauseLocalOnPush: saved.pauseLocalOnPush !== false
+    pauseLocalOnPush: saved.pauseLocalOnPush !== false,
+    playlistNamePrefixEnabled: saved.playlistNamePrefixEnabled !== false
   };
   if (!config.serverUrl || (requireKey && !config.apiKey)) throw new Error('请先填写服务器地址和 API 密钥');
   return config;
@@ -483,6 +485,7 @@ async function importOrSync(itemId: string, requestedCreatePlaylist?: boolean): 
   const item = await absFetch(`/api/items/${encodeURIComponent(itemId)}?expanded=1&include=progress`);
   const meta = metadataOf(item);
   const title = meta.title || '未命名有声书';
+  const playlistName = config.playlistNamePrefixEnabled === false ? title : `【有声书】${title}`;
   const author = meta.authorName || meta.authors?.map((x: AnyMap) => x.name).join('、') || '未知作者';
   const files = item.media?.audioFiles || [];
   if (!files.length) throw new Error('这本书没有可导入的音频文件');
@@ -491,13 +494,18 @@ async function importOrSync(itemId: string, requestedCreatePlaylist?: boolean): 
   const previous = records[itemId];
   const createPlaylist = requestedCreatePlaylist ?? previous?.createPlaylist ?? true;
   let playlist: AnyMap | undefined;
+  let playlistRenamed = false;
   if (createPlaylist && previous?.playlistId) playlist = await songloft.playlists.getById(previous.playlistId).then(value => value || undefined).catch(() => undefined);
+  if (createPlaylist && playlist && playlist.name !== playlistName) {
+    playlist = await songloft.playlists.update(Number(playlist.id), { name: playlistName });
+    playlistRenamed = true;
+  }
   if (createPlaylist && !playlist) {
-    playlist = (await songloft.playlists.search(title, { limit: 50 })).find((x: AnyMap) => x.name === title);
+    playlist = (await songloft.playlists.search(playlistName, { limit: 50 })).find((x: AnyMap) => x.name === playlistName);
   }
   if (createPlaylist && !playlist) {
     playlist = await songloft.playlists.create({
-      name: title,
+      name: playlistName,
       description: `Audiobookshelf · ${author}`,
       coverUrl: coverUrl(config, itemId)
     });
@@ -550,12 +558,14 @@ async function importOrSync(itemId: string, requestedCreatePlaylist?: boolean): 
 
   return {
     playlistId: playlist?.id || null,
+    playlistName: playlist?.name || null,
+    playlistRenamed,
     playlistCreated: Boolean(playlist),
     total: syncedSongs.length,
     added: toAdd.length,
     renamed,
-    unchanged: Boolean(previous && previous.fingerprint === currentFingerprint && previous.importTitleFormat === titleFormat && toAdd.length === 0 && renamed === 0),
-    changed: !previous || previous.fingerprint !== currentFingerprint || previous.importTitleFormat !== titleFormat || renamed > 0
+    unchanged: Boolean(previous && previous.fingerprint === currentFingerprint && previous.importTitleFormat === titleFormat && toAdd.length === 0 && renamed === 0 && !playlistRenamed),
+    changed: !previous || previous.fingerprint !== currentFingerprint || previous.importTitleFormat !== titleFormat || renamed > 0 || playlistRenamed
   };
 }
 
@@ -660,7 +670,8 @@ router.get('/api/config', async () => {
     username: config.username || '',
     playbackPreference: config.playbackPreference || 'resume',
     importTitleFormat: importTitleFormat(config.importTitleFormat),
-    pauseLocalOnPush: config.pauseLocalOnPush !== false
+    pauseLocalOnPush: config.pauseLocalOnPush !== false,
+    playlistNamePrefixEnabled: config.playlistNamePrefixEnabled !== false
   });
 });
 
@@ -704,7 +715,8 @@ router.post('/api/config', async (req) => {
       importTitleFormat: body.importTitleFormat === undefined
         ? importTitleFormat(previous.importTitleFormat)
         : importTitleFormat(body.importTitleFormat),
-      pauseLocalOnPush: body.pauseLocalOnPush === undefined ? previous.pauseLocalOnPush !== false : body.pauseLocalOnPush !== false
+      pauseLocalOnPush: body.pauseLocalOnPush === undefined ? previous.pauseLocalOnPush !== false : body.pauseLocalOnPush !== false,
+      playlistNamePrefixEnabled: body.playlistNamePrefixEnabled === undefined ? previous.playlistNamePrefixEnabled !== false : body.playlistNamePrefixEnabled !== false
     };
     if (!config.serverUrl || !config.apiKey) throw new Error('服务器地址和认证信息不能为空');
     await songloft.persistentStorage.set(CONFIG_KEY, config);
@@ -884,6 +896,7 @@ router.post('/api/sync-all', async (req) => {
     let failed = 0;
     let added = 0;
     let renamed = 0;
+    let playlistsRenamed = 0;
     while (true) {
       const result = await absFetch(`/api/libraries/${encodeURIComponent(libraryId)}/items?limit=100&page=${page}`);
       const items = result.results || [];
@@ -893,6 +906,7 @@ router.post('/api/sync-all', async (req) => {
           success += 1;
           added += Number(synced.added || 0);
           renamed += Number(synced.renamed || 0);
+          playlistsRenamed += synced.playlistRenamed ? 1 : 0;
         } catch (error) {
           failed += 1;
           songloft.log.warn(`同步 ${item.id} 失败: ${String(error)}`);
@@ -901,7 +915,7 @@ router.post('/api/sync-all', async (req) => {
       if (!items.length || (page + 1) * 100 >= Number(result.total || 0)) break;
       page += 1;
     }
-    return jsonResponse({ ok: true, success, failed, added, renamed });
+    return jsonResponse({ ok: true, success, failed, added, renamed, playlistsRenamed });
   } catch (error) { return safeError(error); }
 });
 
@@ -982,7 +996,7 @@ router.post('/api/music/url', createMusicUrlHandler({
 }));
 
 async function onInit(): Promise<void> {
-  songloft.log.info('Audiobookshelf plugin v0.9.0 initialized');
+  songloft.log.info('Audiobookshelf plugin v0.9.1 initialized');
   await registerToMiot();
 }
 async function onDeinit(): Promise<void> {
