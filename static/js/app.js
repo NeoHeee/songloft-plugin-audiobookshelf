@@ -39,6 +39,48 @@ function playbackCandidates(url) {
   return (preferProxy ? [proxy, direct] : [direct, proxy]).filter((item, index, items) => item && items.indexOf(item) === index);
 }
 
+// Cover loading is independent of audio playback and never persists proxy tokens.
+const coverStates = new WeakMap();
+
+function coverCandidates(url) {
+  const direct = String(url || '').trim();
+  if (!direct) return [];
+  try {
+    const parsed = new URL(direct, window.location.origin);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return [];
+    // Avoid wrapping an existing same-origin URL in another proxy request.
+    if (parsed.origin === window.location.origin) return [direct];
+    return [songloftAudioProxyUrl(direct), direct];
+  } catch (_) { return []; }
+}
+
+function setCoverImage(image, url) {
+  const source = String(url || '').trim();
+  if (coverStates.get(image)?.source === source) return;
+  const state = { source, candidates: coverCandidates(source), index: 0 };
+  coverStates.set(image, state);
+  image.classList.remove('cover-fallback');
+  image.referrerPolicy = 'no-referrer';
+  const loadCandidate = () => {
+    const candidate = state.candidates[state.index];
+    image.classList.toggle('cover-fallback', !candidate);
+    image.src = candidate || COVER_PLACEHOLDER;
+  };
+  image.onerror = () => {
+    if (coverStates.get(image) !== state || state.index >= state.candidates.length) return;
+    state.index += 1;
+    loadCandidate();
+  };
+  loadCandidate();
+}
+
+function loadCoverImages(container) {
+  container.querySelectorAll('img[data-cover-url]').forEach(image => {
+    setCoverImage(image, image.dataset.coverUrl);
+    image.removeAttribute('data-cover-url');
+  });
+}
+
 function showWorkspace(view, persist = true) {
   const selected = ['library', 'player', 'settings', 'diagnostics'].includes(view) ? view : 'library';
   document.querySelectorAll('[data-workspace]').forEach(page => page.classList.toggle('active', page.dataset.workspace === selected));
@@ -171,6 +213,11 @@ async function init() {
     $('importTitleFormat').value = config.importTitleFormat || 'book-index-source';
     $('playlistNamePrefixEnabled').checked = config.playlistNamePrefixEnabled !== false;
     $('pauseLocalOnPush').checked = config.pauseLocalOnPush !== false;
+    $('speakerHlsEnabled').checked = config.speakerHlsEnabled === true;
+    $('speakerHlsStartMode').value = config.speakerHlsStartMode === 'book' ? 'book' : 'selected';
+    $('speakerHlsHostUrl').value = config.speakerHlsHostUrl || '';
+    updateSpeakerMode();
+    await refreshHlsSession();
     await loadPlaybackHistory(true);
     updateAuthFields();
     if (config.serverUrl && config.hasCredential) {
@@ -207,6 +254,9 @@ async function save() {
       playbackPreference: $('playbackPreference').value,
       importTitleFormat: $('importTitleFormat').value,
       playlistNamePrefixEnabled: $('playlistNamePrefixEnabled').checked,
+      speakerHlsEnabled: $('speakerHlsEnabled').checked,
+      speakerHlsStartMode: $('speakerHlsStartMode').value,
+      speakerHlsHostUrl: $('speakerHlsHostUrl').value,
       pauseLocalOnPush: $('pauseLocalOnPush').checked
     });
     $('key').value = '';
@@ -239,7 +289,7 @@ async function loadBooks(quiet = false) {
   try {
     const libraryId = $('library').value;
     if (!libraryId) throw new Error('请先选择书库');
-    await apiPost('/api/config', { serverUrl: $('server').value, apiKey: '', libraryId, playbackPreference: $('playbackPreference').value, importTitleFormat: $('importTitleFormat').value, playlistNamePrefixEnabled: $('playlistNamePrefixEnabled').checked, pauseLocalOnPush: $('pauseLocalOnPush').checked });
+    await apiPost('/api/config', { serverUrl: $('server').value, apiKey: '', libraryId, playbackPreference: $('playbackPreference').value, importTitleFormat: $('importTitleFormat').value, playlistNamePrefixEnabled: $('playlistNamePrefixEnabled').checked, speakerHlsEnabled: $('speakerHlsEnabled').checked, speakerHlsStartMode: $('speakerHlsStartMode').value, speakerHlsHostUrl: $('speakerHlsHostUrl').value, pauseLocalOnPush: $('pauseLocalOnPush').checked });
     setBusy($('load'), true, '正在加载…');
     if (!quiet) status('正在读取书库…');
     $('books').innerHTML = '<div class="empty-state"><strong>正在加载书库…</strong><p>正在读取书籍、封面和收听进度。</p></div>';
@@ -319,7 +369,7 @@ function renderLibrary() {
       ? `<button class="secondary" data-sync="${escapeHtml(book.id)}">检查更新</button>${book.sync.hasPlaylist ? '' : `<button class="primary" data-import="${escapeHtml(book.id)}">创建歌单</button>`}`
       : `<button class="primary" data-import="${escapeHtml(book.id)}">导入</button>`;
     return `<article class="book-card">
-      <img class="book-cover" src="${book.coverUrl}" alt="${escapeHtml(book.title)}封面" loading="lazy">
+      <img class="book-cover" data-cover-url="${escapeHtml(book.coverUrl)}" alt="${escapeHtml(book.title)}封面" loading="lazy">
       <div class="book-body"><h3 class="book-title">${escapeHtml(book.title)}</h3><p class="book-author">${escapeHtml(book.author || '未知作者')}</p>
       <p class="book-meta">${formatTime(book.duration)} · ${escapeHtml(progress)}</p>
       <div class="progress-track" title="收听进度 ${percent}%"><span style="width:${percent}%"></span></div>
@@ -329,6 +379,7 @@ function renderLibrary() {
   }).join('') : libraryLoaded && libraryTotal === 0
     ? '<div class="empty-state"><strong>这个书库暂时没有有声书</strong><p>在 Audiobookshelf 中添加内容后重新加载。</p></div>'
     : '<div class="empty-state compact"><strong>没有符合条件的书籍</strong><p>尝试清除搜索词或更改同步状态。</p></div>';
+  loadCoverImages($('books'));
 }
 
 async function saveImportOptions() {
@@ -339,6 +390,9 @@ async function saveImportOptions() {
     playbackPreference: $('playbackPreference').value,
     importTitleFormat: $('importTitleFormat').value,
     playlistNamePrefixEnabled: $('playlistNamePrefixEnabled').checked,
+    speakerHlsEnabled: $('speakerHlsEnabled').checked,
+    speakerHlsStartMode: $('speakerHlsStartMode').value,
+    speakerHlsHostUrl: $('speakerHlsHostUrl').value,
     pauseLocalOnPush: $('pauseLocalOnPush').checked
   });
 }
@@ -393,7 +447,7 @@ function updatePlayer() {
   const book = playbackState.book;
   $('playerTitle').textContent = book?.title || '未在播放';
   $('playerMeta').textContent = track ? `${book?.author || '未知作者'} · ${track.title} · ${playbackState.index + 1}/${playbackState.tracks.length}` : '从书库选择一本有声书开始播放';
-  $('playerCover').src = book?.coverUrl || COVER_PLACEHOLDER;
+  setCoverImage($('playerCover'), book?.coverUrl);
   $('playerPrevious').disabled = playbackState.index <= 0;
   $('playerNext').disabled = playbackState.index >= playbackState.tracks.length - 1;
   renderPlayerPage();
@@ -427,11 +481,12 @@ function renderPlaybackHistory() {
     const position = Number(entry.positionSeconds || 0);
     const mode = entry.mode === 'speaker' ? `智能音箱${entry.deviceName ? ` · ${entry.deviceName}` : ''}` : '本机播放';
     return `<article class="history-item">
-      <img class="history-cover" src="${escapeHtml(entry.coverUrl || COVER_PLACEHOLDER)}" alt="${escapeHtml(entry.title)}封面" loading="lazy">
+      <img class="history-cover" data-cover-url="${escapeHtml(entry.coverUrl)}" alt="${escapeHtml(entry.title)}封面" loading="lazy">
       <div class="history-copy"><strong>${escapeHtml(entry.title)}</strong><span>${escapeHtml(entry.author || '未知作者')} · ${escapeHtml(title)}</span><small><b class="history-mode">${escapeHtml(mode)}</b>${position > 0 ? ` · ${compactTime(position)}` : ''} · ${escapeHtml(historyDate(entry.playedAt))}</small></div>
       <div class="history-actions"><button class="secondary" type="button" data-history-resume="${escapeHtml(entry.itemId)}">继续播放</button><button class="text-button history-remove" type="button" data-history-remove="${escapeHtml(entry.itemId)}" aria-label="删除《${escapeHtml(entry.title)}》的播放记录">删除</button></div>
     </article>`;
   }).join('') : '<div class="empty-state compact"><strong>暂无播放历史</strong><p>开始播放或成功推送一本有声书后，记录会显示在这里。</p></div>';
+  loadCoverImages($('playbackHistoryList'));
 }
 
 async function loadPlaybackHistory(quiet = false) {
@@ -445,6 +500,8 @@ async function loadPlaybackHistory(quiet = false) {
 }
 
 async function savePlaybackHistory(mode = 'local', deviceName = '') {
+  if (mode === 'local') playbackState.hlsPushed = false;
+  if (mode === 'speaker' && playbackState.hlsPushed) return;
   if (historySavePromise) {
     if (mode === 'local') return historySavePromise;
     await historySavePromise.catch(() => {});
@@ -486,6 +543,7 @@ async function removePlaybackHistory(itemId) {
 }
 
 function renderPlayerPage() {
+  updateSpeakerMode();
   const hasBook = Boolean(playbackState.book);
   const showCurrent = playerPanel === 'current';
   $('showCurrentPlayer').classList.toggle('active', showCurrent);
@@ -497,7 +555,7 @@ function renderPlayerPage() {
   $('playbackHistoryPanel').classList.toggle('hidden', showCurrent);
   if (!showCurrent || !hasBook) return;
   const book = playbackState.book;
-  $('detailCover').src = book.coverUrl || COVER_PLACEHOLDER;
+  setCoverImage($('detailCover'), book.coverUrl);
   $('detailTitle').textContent = book.title || '未命名有声书';
   $('detailAuthor').textContent = book.author || '未知作者';
   const duration = playbackState.tracks.reduce((sum, track) => sum + Number(track.duration || 0), 0);
@@ -611,29 +669,91 @@ async function loadSpeakers(quiet = false) {
   } finally { setBusy($('refreshSpeakers'), false); }
 }
 
+function updateSpeakerMode() {
+  const enabled = $('speakerHlsEnabled').checked;
+  const label = speakerStartLabel();
+  if (!$('pushToSpeaker').disabled) $('pushToSpeaker').textContent = enabled ? ($('speakerHlsStartMode').value === 'book' ? '连续播放整本书（实验）' : '从当前章节连续播放（实验）') : '推送当前音频';
+  $('speakerModeHint').textContent = enabled
+    ? `实验模式：从“${label}”开头连续播放到结尾，不采用本机当前秒数。分片对齐可能提前几秒。准备可能需要约 30 秒；失败不自动回退。`
+    : '单文件推送：音箱从当前音频文件开头播放，不自动切换下一集。';
+}
+
+function speakerStartLabel() {
+  if ($('speakerHlsStartMode').value === 'book') return '整本书开头';
+  const chapter = playbackState.chapters[playbackState.chapterIndex];
+  return chapter?.title || playbackState.tracks[playbackState.index]?.title || '当前集';
+}
+
+async function refreshHlsSession() {
+  try {
+    const result = await apiGet('/api/miot/hls');
+    const session = result.session;
+    const phases = { preparing: '正在准备或准备未完成', ready: '已准备，推送尚未确认', sent: '推送指令已发送（非实时播放状态）' };
+    $('hlsSessionStatus').textContent = session ? `《${session.title}》 · 从“${session.startLabel || '整本书开头'}”起播 · ${phases[session.phase] || '待清理'} · 设备 ${session.deviceId}` : '当前没有连续流会话';
+    $('closeHlsSession').disabled = !session;
+  } catch (_) {
+    $('hlsSessionStatus').textContent = '会话状态读取失败，请刷新重试';
+    $('closeHlsSession').disabled = false;
+  }
+}
+
+async function closeHlsSession() {
+  if (!await confirmAction('清理连续流会话', '将停止为实验连续流提供音频并清理临时文件，不修改原始有声书或收听进度。音箱可能短暂播放已有缓冲。', '清理会话')) return;
+  try {
+    setBusy($('closeHlsSession'), true, '正在清理…');
+    await apiPost('/api/miot/hls/close', {});
+    status('连续流会话已清理');
+  } catch (error) { status(error.message, false); }
+  finally { setBusy($('closeHlsSession'), false); await refreshHlsSession(); }
+}
+
 async function pushCurrentToSpeaker() {
   const device = selectedSpeaker();
+  const book = playbackState.book;
+  const trackIndex = playbackState.index;
+  const chapterIndex = playbackState.chapterIndex;
+  const startLabel = speakerStartLabel();
+  const startPosition = Number($('previewAudio').currentTime || 0);
   const track = playbackState.tracks[playbackState.index];
   if (!device) return status('请先选择智能音箱', false);
   if (!playbackState.book || !track) return status('请先选择要播放的有声书目录', false);
+  if ($('speakerHlsEnabled').checked && !await confirmAction('实验性连续播放', `将从“${startLabel}”开头连续播放到书籍结尾，不采用本机当前秒数，可能因分片对齐提前几秒。会使用 NAS 转码和临时空间。`, '开始播放')) return;
   try {
     setBusy($('pushToSpeaker'), true, '正在推送…');
+    await saveImportOptions();
+    if ($('speakerHlsEnabled').checked) status('正在准备所选起点的连续流并检查分片，请稍候…');
     const result = await apiPost('/api/miot/play', {
       accountId: device.accountId,
       deviceId: device.deviceId,
-      itemId: playbackState.book.id,
-      fileIndex: playbackState.index,
-      startPosition: Number($('previewAudio').currentTime || 0)
+      itemId: book.id,
+      fileIndex: trackIndex,
+      chapterIndex,
+      startPosition
     });
     localStorage.setItem('audiobookshelf:speaker-device', `${device.accountId}:${device.deviceId}`);
-    await savePlaybackHistory('speaker', device.name);
     if ($('pauseLocalOnPush').checked) $('previewAudio').pause();
-    $('speakerStatus').textContent = `${device.name} · 已开始播放`;
+    if (result.mode === 'hls') {
+      if (playbackState.book?.id === book.id) {
+        playbackState.hlsPushed = true;
+        playbackState.historyMode = 'speaker';
+        playbackState.historyDeviceName = device.name;
+      }
+      try {
+        if (historySavePromise) await historySavePromise.catch(() => {});
+        await apiPost('/api/play-history', { itemId: book.id, title: book.title,
+          author: book.author, ...result.history, mode: 'speaker', deviceName: device.name });
+        await loadPlaybackHistory(true);
+      } catch (_) { status('指令已发送，但播放历史保存失败', false); }
+    } else if (playbackState.book?.id === book.id) {
+      playbackState.hlsPushed = false;
+      await savePlaybackHistory('speaker', device.name);
+    }
+    $('speakerStatus').textContent = `${device.name} · ${result.mode === 'hls' ? '连续流指令已发送，请试听确认' : '已开始播放'}`;
     status(result.warning || `已推送到 ${device.name}`, true);
   } catch (e) {
     $('speakerStatus').textContent = `推送失败：${e.message}`;
     status(e.message, false);
-  } finally { setBusy($('pushToSpeaker'), false); }
+  } finally { setBusy($('pushToSpeaker'), false); updateSpeakerMode(); await refreshHlsSession(); }
 }
 
 async function controlSpeaker(action, button) {
@@ -645,7 +765,7 @@ async function controlSpeaker(action, button) {
     const labels = { pause: '已暂停', resume: '正在播放', stop: '已停止' };
     $('speakerStatus').textContent = `${device.name} · ${labels[action] || '操作完成'}`;
   } catch (e) { status(e.message, false); }
-  finally { setBusy(button, false); }
+  finally { setBusy(button, false); await refreshHlsSession(); }
 }
 
 async function refreshSpeakerStatus(quiet = false) {
@@ -806,12 +926,6 @@ $('books').addEventListener('click', e => {
     importBook(button.dataset.sync, button, Boolean(book?.sync?.hasPlaylist));
   }
 });
-$('books').addEventListener('error', e => {
-  if (e.target.matches('.book-cover') && e.target.src !== COVER_PLACEHOLDER) {
-    e.target.src = COVER_PLACEHOLDER;
-    e.target.classList.add('cover-fallback');
-  }
-}, true);
 $('actionDismiss').addEventListener('click', dismissActionNotice);
 $('actionRetry').addEventListener('click', async () => {
   const action = retryAction;
@@ -839,15 +953,16 @@ $('playbackHistoryList').addEventListener('click', e => {
   const removeButton = e.target.closest('[data-history-remove]');
   if (removeButton) removePlaybackHistory(removeButton.dataset.historyRemove).catch(error => status(`删除失败：${error.message}`, false));
 });
-$('playbackHistoryList').addEventListener('error', e => {
-  if (e.target.matches('.history-cover') && e.target.src !== COVER_PLACEHOLDER) e.target.src = COVER_PLACEHOLDER;
-}, true);
 $('detailResume').addEventListener('click', () => {
   const audio = $('previewAudio');
   if (audio.src) audio.play().catch(e => status(`播放失败：${e.message}`, false));
   else loadPlaybackTrack(playbackState.index, true).catch(e => status(`播放失败：${e.message}`, false));
 });
 $('refreshSpeakers').addEventListener('click', () => loadSpeakers(false));
+$('speakerHlsEnabled').addEventListener('change', updateSpeakerMode);
+$('speakerHlsStartMode').addEventListener('change', updateSpeakerMode);
+$('refreshHlsSession').addEventListener('click', refreshHlsSession);
+$('closeHlsSession').addEventListener('click', closeHlsSession);
 $('pushToSpeaker').addEventListener('click', pushCurrentToSpeaker);
 $('refreshSpeakerStatus').addEventListener('click', () => refreshSpeakerStatus(false));
 $('speakerDevice').addEventListener('change', () => {

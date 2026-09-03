@@ -24,7 +24,7 @@
             <svg viewBox="0 0 24 24" fill="none"><path d="M5 4.8A3.8 3.8 0 0 1 8.8 1H19v18H8.8A3.8 3.8 0 0 0 5 22.8V4.8Z"/><path d="M5 5a4 4 0 0 1 4-4M9 6h6M9 10h6M9 14h4"/></svg>
           </div>
           <div class="brand-copy">
-            <div class="brand-row"><h1>Audiobookshelf 有声书</h1><span class="version-badge">v0.9.1</span></div>
+            <div class="brand-row"><h1>Audiobookshelf 有声书</h1><span class="version-badge">v0.9.2-beta.2</span></div>
             <p>连接私人书库 · 续播有声世界</p>
           </div>
         </div>
@@ -87,6 +87,9 @@
           <label class="field field-wide" for="importTitleFormat"><span>导入歌曲标题格式</span><select id="importTitleFormat"><option value="source">源文件名（例：001前言01.m4a）</option><option value="book-source">书名 - 源文件标题（例：Dark Mirror|美国黑镜 - 001前言01）</option><option value="book-index-source">书名 - 序号 - 源文件名（兼容旧格式）</option></select></label>
           <label class="setting-toggle field-wide" for="playlistNamePrefixEnabled"><input id="playlistNamePrefixEnabled" type="checkbox" checked><span><strong>有声书歌单名称前缀</strong><small>开启后使用“【有声书】书名”，便于和音乐歌单区分；关闭后仅使用原书名。</small></span></label>
           <label class="setting-toggle field-wide" for="pauseLocalOnPush"><input id="pauseLocalOnPush" type="checkbox" checked><span><strong>推送后暂停本机</strong><small>智能音箱开始播放后自动暂停页面播放器，避免两处同时出声。</small></span></label>
+          <label class="setting-toggle field-wide" for="speakerHlsEnabled"><input id="speakerHlsEnabled" type="checkbox"><span><strong>音箱连续流播放（实验性）</strong><small>默认关闭。开启后可从当前章节或整本书开头连续播放到结尾，不导入 Songloft。需音箱支持 HLS，NAS 会产生临时转码文件。关闭仅影响下一次推送。</small></span></label>
+          <label>连续流起播方式<select id="speakerHlsStartMode"><option value="selected">当前章节 / 当前集 → 书籍结尾</option><option value="book">整本书开头 → 书籍结尾</option></select><small>默认从所选章节开头起播，不采用本机当前秒数。按分片对齐，可能提前几秒。</small></label>
+          <label>音箱可访问的 Songloft 地址（可选）<input id="speakerHlsHostUrl" type="url" placeholder="例如：http://192.168.1.10:8000"><small>从中间章节起播时使用。留空采用宿主地址；若为回环地址请填写局域网地址。不是 ABS 地址，请勿填写令牌或账号密码。</small></label>
         </div>
         <div class="action-row"><button id="load" class="primary" type="button">保存设置并加载书库</button></div>
         <div class="info-note"><span aria-hidden="true">i</span><p>修改歌曲标题或歌单前缀后，对已导入的书执行“检查更新”或“增量同步全部”即可更新现有名称。MIoT 中建议开启“不入库直接播放”。</p></div>
@@ -128,6 +131,12 @@
       </section>
 
       <section class="workspace-page player-page" data-workspace="player">
+        <section class="card" aria-labelledby="hlsSessionHeading">
+          <div class="section-heading"><div><span class="section-kicker">实验性功能</span><h2 id="hlsSessionHeading">连续流会话</h2></div><button id="refreshHlsSession" class="text-button" type="button">刷新会话</button></div>
+          <p id="hlsSessionStatus" role="status">正在读取会话状态…</p>
+          <button id="closeHlsSession" class="secondary" type="button" disabled>清理连续流会话</button>
+          <p class="section-description">播放结束后请点“停止”或清理会话。清理会停止提供音频并释放临时文件；音箱缓冲可能短暂继续播放。关闭页面不清理会话，不会自动回写收听进度。</p>
+        </section>
         <div class="player-subnav" role="tablist" aria-label="播放内容">
           <button id="showCurrentPlayer" class="active" type="button" role="tab" aria-selected="true">当前播放</button>
           <button id="showPlaybackHistory" type="button" role="tab" aria-selected="false">播放历史 <span id="historyCount">0</span></button>
@@ -153,7 +162,7 @@
               <button id="refreshSpeakerStatus" type="button" class="text-button">刷新状态</button>
               <span id="speakerStatus" class="speaker-status">尚未连接 MIoT 设备</span>
             </div>
-            <div class="info-note speaker-note"><span aria-hidden="true">i</span><p>多文件有声书可准确推送当前音频。单文件 M4B 暂不支持推送后跳到文件内章节，音箱会从该文件开头播放。</p></div>
+            <div class="info-note speaker-note"><span aria-hidden="true">i</span><p id="speakerModeHint">多文件有声书可准确推送当前音频。单文件 M4B 暂不支持推送后跳到文件内章节，音箱会从该文件开头播放。</p></div>
           </section>
           <section class="card directory-card">
             <div class="section-heading"><div><span class="section-kicker">播放目录</span><h2 id="directoryHeading">章节目录</h2></div><p id="directorySummary">选择章节开始播放</p></div>

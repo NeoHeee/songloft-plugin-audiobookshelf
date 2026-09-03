@@ -1,5 +1,6 @@
 /// <reference types="@songloft/plugin-sdk" />
 import { createMusicUrlHandler, createRouter, jsonResponse, parseQuery, type HTTPRequest, type HTTPResponse } from '@songloft/plugin-sdk';
+import { HlsPlayback, speakerPlaylistBase, type HlsSession } from './hls';
 
 type ImportTitleFormat = 'source' | 'book-source' | 'book-index-source';
 type Config = {
@@ -13,6 +14,9 @@ type Config = {
   importTitleFormat?: ImportTitleFormat;
   pauseLocalOnPush?: boolean;
   playlistNamePrefixEnabled?: boolean;
+  speakerHlsEnabled?: boolean;
+  speakerHlsStartMode?: 'selected' | 'book';
+  speakerHlsHostUrl?: string;
 };
 type AnyMap = Record<string, any>;
 type SyncRecord = {
@@ -37,6 +41,16 @@ const LAST_PLAY_KEY = 'abs_last_direct_play_v1';
 const PLAY_HISTORY_KEY = 'abs_play_history_v1';
 const MAX_PLAY_HISTORY = 50;
 const DEFAULT_IMPORT_TITLE_FORMAT: ImportTitleFormat = 'book-index-source';
+const HLS_SESSION_KEY = 'abs_speaker_hls_session_v1';
+const hlsPlayback = new HlsPlayback({
+  read: async () => (await songloft.persistentStorage.get(HLS_SESSION_KEY) || null) as HlsSession | null,
+  write: async value => { await songloft.persistentStorage.set(HLS_SESSION_KEY, value); },
+  request: (path, init) => absFetch(path, init),
+  fetch: (url, init) => fetch(url, init),
+  now: () => Date.now(),
+  delay: ms => new Promise(resolve => setTimeout(resolve, ms)),
+  createKey: () => crypto.randomBytes(24).toString('hex')
+});
 
 function importTitleFormat(value: unknown): ImportTitleFormat {
   return value === 'source' || value === 'book-source' || value === 'book-index-source'
@@ -346,7 +360,10 @@ async function getConfig(requireKey = true): Promise<Config> {
     playbackPreference: saved.playbackPreference === 'from-start' ? 'from-start' : 'resume',
     importTitleFormat: importTitleFormat(saved.importTitleFormat),
     pauseLocalOnPush: saved.pauseLocalOnPush !== false,
-    playlistNamePrefixEnabled: saved.playlistNamePrefixEnabled !== false
+    playlistNamePrefixEnabled: saved.playlistNamePrefixEnabled !== false,
+    speakerHlsEnabled: saved.speakerHlsEnabled === true,
+    speakerHlsStartMode: saved.speakerHlsStartMode === 'book' ? 'book' : 'selected',
+    speakerHlsHostUrl: String(saved.speakerHlsHostUrl || '')
   };
   if (!config.serverUrl || (requireKey && !config.apiKey)) throw new Error('请先填写服务器地址和 API 密钥');
   return config;
@@ -412,8 +429,9 @@ async function getPlaybackHistory(): Promise<AnyMap[]> {
 
 async function absFetch(path: string, init: AnyMap = {}): Promise<any> {
   let config = await getConfig();
+  const { allowNotFound, ...requestInit } = init;
   const request = (activeConfig: Config) => fetch(activeConfig.serverUrl + path, {
-    ...init,
+    ...requestInit,
     headers: { Authorization: `Bearer ${activeConfig.apiKey}`, 'Content-Type': 'application/json', 'X-Fetch-Timeout-Ms': '15000', ...(init.headers || {}) }
   });
   let response = await request(config);
@@ -421,6 +439,7 @@ async function absFetch(path: string, init: AnyMap = {}): Promise<any> {
     config = await refreshPasswordToken(config);
     response = await request(config);
   }
+  if (allowNotFound && response.status === 404) return null;
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
       throw new Error(config.authMode === 'password' ? 'Audiobookshelf 登录已失效或无权访问该书库' : 'API 密钥无效、已停用或无权访问该书库');
@@ -671,17 +690,26 @@ router.get('/api/config', async () => {
     playbackPreference: config.playbackPreference || 'resume',
     importTitleFormat: importTitleFormat(config.importTitleFormat),
     pauseLocalOnPush: config.pauseLocalOnPush !== false,
-    playlistNamePrefixEnabled: config.playlistNamePrefixEnabled !== false
+    playlistNamePrefixEnabled: config.playlistNamePrefixEnabled !== false,
+    speakerHlsEnabled: config.speakerHlsEnabled === true,
+    speakerHlsStartMode: config.speakerHlsStartMode,
+    speakerHlsHostUrl: config.speakerHlsHostUrl
   });
 });
 
 router.post('/api/config', async (req) => {
   try {
+    return await hlsPlayback.exclusive(async () => {
     const body = JSON.parse(String(req.body || '{}'));
     const previous = await getConfig(false);
     const serverUrl = cleanUrl(body.serverUrl || previous.serverUrl || DEFAULT_SERVER_URL);
     const authMode = body.authMode === 'password' ? 'password' : body.authMode === 'api-key' ? 'api-key' : (previous.authMode || 'api-key');
     const serverChanged = serverUrl !== previous.serverUrl;
+    if ((serverChanged || authMode !== previous.authMode || body.password ||
+        (body.apiKey && body.apiKey !== previous.apiKey) ||
+        (body.username && body.username !== previous.username)) && await hlsPlayback.current()) {
+      throw new Error('请先在播放页停止或清理连续流会话，再更换服务器或认证信息');
+    }
     let apiKey = previous.apiKey;
     let refreshToken = previous.refreshToken || '';
     let username = previous.username || '';
@@ -716,11 +744,16 @@ router.post('/api/config', async (req) => {
         ? importTitleFormat(previous.importTitleFormat)
         : importTitleFormat(body.importTitleFormat),
       pauseLocalOnPush: body.pauseLocalOnPush === undefined ? previous.pauseLocalOnPush !== false : body.pauseLocalOnPush !== false,
-      playlistNamePrefixEnabled: body.playlistNamePrefixEnabled === undefined ? previous.playlistNamePrefixEnabled !== false : body.playlistNamePrefixEnabled !== false
+      playlistNamePrefixEnabled: body.playlistNamePrefixEnabled === undefined ? previous.playlistNamePrefixEnabled !== false : body.playlistNamePrefixEnabled !== false,
+      speakerHlsEnabled: body.speakerHlsEnabled === undefined ? previous.speakerHlsEnabled === true : body.speakerHlsEnabled === true,
+      speakerHlsStartMode: body.speakerHlsStartMode === undefined ? previous.speakerHlsStartMode : body.speakerHlsStartMode === 'book' ? 'book' : 'selected',
+      speakerHlsHostUrl: body.speakerHlsHostUrl === undefined ? previous.speakerHlsHostUrl : String(body.speakerHlsHostUrl || '').trim()
     };
+    if (config.speakerHlsHostUrl) config.speakerHlsHostUrl = speakerPlaylistBase(config.speakerHlsHostUrl);
     if (!config.serverUrl || !config.apiKey) throw new Error('服务器地址和认证信息不能为空');
     await songloft.persistentStorage.set(CONFIG_KEY, config);
     return jsonResponse({ ok: true });
+    });
   } catch (error) { return safeError(error); }
 });
 
@@ -928,16 +961,64 @@ router.get('/api/miot/devices', async () => {
 
 router.post('/api/miot/play', async (req) => {
   try {
+    return await hlsPlayback.exclusive(async () => {
     const body = JSON.parse(String(req.body || '{}'));
     const accountId = String(body.accountId || '');
     const deviceId = String(body.deviceId || '');
     const itemId = String(body.itemId || '');
-    const fileIndex = Math.max(0, Number(body.fileIndex || 0));
+    const fileIndex = Number(body.fileIndex ?? 0);
     if (!accountId || !deviceId) throw new Error('请选择智能音箱');
     if (!itemId) throw new Error('请先选择要播放的有声书');
     const config = await getConfig();
     const item = await absFetch(`/api/items/${encodeURIComponent(itemId)}?expanded=1&include=progress`);
     const files = item.media?.audioFiles || [];
+    if (config.speakerHlsEnabled) {
+      if (!files.length) throw new Error('这本书没有可播放音频');
+      let requestedStart = 0, startLabel = '整本书开头';
+      const chapters = chaptersOf(item);
+      if (config.speakerHlsStartMode !== 'book') {
+        const chapterIndex = Number(body.chapterIndex ?? -1);
+        if (!Number.isInteger(fileIndex) || !files[fileIndex] || !Number.isInteger(chapterIndex) || chapterIndex < -1) throw new Error('请重新选择有效的播放目录');
+        if (chapterIndex >= 0) {
+          const chapter = chapters[chapterIndex];
+          if (!chapter) throw new Error('所选章节不存在，请刷新目录');
+          requestedStart = chapterStart(chapter);
+          startLabel = String(chapter.title || chapter.name || `第 ${chapterIndex + 1} 章`);
+        } else {
+          for (let i = 0; i < fileIndex; i++) {
+            const duration = Number(files[i].duration);
+            if (!Number.isFinite(duration) || duration <= 0) throw new Error('音频时长不完整，无法定位起播位置');
+            requestedStart += duration;
+          }
+          startLabel = audioFileName(files[fileIndex], fileIndex);
+        }
+        if (!Number.isFinite(requestedStart) || requestedStart < 0) throw new Error('章节起播位置无效');
+      }
+      const hostBase = requestedStart > 0 ? speakerPlaylistBase(config.speakerHlsHostUrl || await songloft.plugin.getHostUrl()) : '';
+      const prepared = await hlsPlayback.prepare(config.serverUrl, accountId, deviceId, itemId, String(metadataOf(item).title || '有声书'), requestedStart, startLabel);
+      const streamUrl = prepared.session.playlistKey
+        ? `${hostBase}/api/v1/jsplugin/audiobookshelf/speaker-stream/${prepared.session.playlistKey}/index.m3u8` : prepared.url;
+      try {
+        await callMiot('/mina/play-url', {
+          method: 'POST', body: JSON.stringify({ account_id: accountId, device_id: deviceId, url: streamUrl })
+        });
+      } catch (_) {
+        try { await hlsPlayback.close(config.serverUrl); }
+        catch (_) { throw new Error('连续流推送失败，且会话未清理，请点击“清理连续流会话”'); }
+        throw new Error('MIoT 未确认连续流推送成功，会话已清理；未自动回退为单集播放');
+      }
+      await hlsPlayback.markSent(prepared.session);
+      const actualStart = prepared.session.actualStart || 0;
+      const located = locateGlobalTime(files, actualStart);
+      const chapterIndex = chapters.findIndex((chapter, i) => actualStart >= chapterStart(chapter) && actualStart < chapterEnd(chapter, chapters[i + 1] ? chapterStart(chapters[i + 1]) : Infinity));
+      const earlySeconds = Math.max(0, requestedStart - actualStart);
+      return jsonResponse({ ok: true, mode: 'hls', startPosition: actualStart, requestedStart, startLabel, earlySeconds,
+        history: { trackIndex: located.index, chapterIndex, trackTitle: audioFileName(located.file, located.index),
+          chapterTitle: chapterIndex >= 0 ? String(chapters[chapterIndex].title || '') : '', positionSeconds: located.offset },
+        warning: `连续流指令已发送：从“${startLabel}”连续播放到结尾${earlySeconds > 0 ? `（分片对齐，约提前 ${earlySeconds.toFixed(1)} 秒）` : ''}。请确认音箱实际起播位置及跨集播放。` });
+    }
+    const active = await hlsPlayback.current();
+    if (active && active.accountId === accountId && active.deviceId === deviceId) await hlsPlayback.close(config.serverUrl);
     const file = files[fileIndex];
     if (!file) throw new Error('所选音频不存在，请重新选择目录');
     const url = audioFileUrl(config, itemId, file, fileIndex);
@@ -948,14 +1029,17 @@ router.post('/api/miot/play', async (req) => {
     await songloft.persistentStorage.set(LAST_PLAY_KEY, { itemId, fileIndex, at: new Date().toISOString() });
     return jsonResponse({
       ok: true,
+      mode: 'single',
       data: response?.data || null,
       warning: Number(body.startPosition || 0) > 0 ? '当前 MIoT URL 推送不支持文件内跳转，音箱将从该音频文件开头播放。' : ''
+    });
     });
   } catch (error) { return safeError(error); }
 });
 
 router.post('/api/miot/control', async (req) => {
   try {
+    return await hlsPlayback.exclusive(async () => {
     const body = JSON.parse(String(req.body || '{}'));
     const accountId = String(body.accountId || '');
     const deviceId = String(body.deviceId || '');
@@ -966,8 +1050,41 @@ router.post('/api/miot/control', async (req) => {
       method: 'POST',
       body: JSON.stringify({ account_id: accountId, device_id: deviceId })
     });
+    if (action === 'stop') {
+      const active = await hlsPlayback.current();
+      if (active?.accountId === accountId && active.deviceId === deviceId) await hlsPlayback.close((await getConfig()).serverUrl);
+    }
     return jsonResponse({ ok: true, data: response?.data || null });
+    });
   } catch (error) { return safeError(error); }
+});
+
+router.get('/api/miot/hls', async () => {
+  const active = await hlsPlayback.current();
+  return jsonResponse({ ok: true, session: active ? {
+    title: active.title, phase: active.phase, createdAt: active.createdAt,
+    accountId: active.accountId, deviceId: active.deviceId,
+    startLabel: active.startLabel, requestedStart: active.requestedStart, actualStart: active.actualStart
+  } : null });
+});
+
+router.post('/api/miot/hls/close', async () => {
+  try {
+    return await hlsPlayback.exclusive(async () => {
+      await hlsPlayback.close((await getConfig()).serverUrl);
+      return jsonResponse({ ok: true });
+    });
+  } catch (_) { return jsonResponse({ ok: false, error: '连续流会话清理失败，请检查连接后重试；必要时在 Audiobookshelf 中结束会话' }, 400); }
+});
+
+// Narrow anonymous capability route: no credentials, proxy parameters or media writes.
+router.get('/speaker-stream/:key/index.m3u8', async (_req, params) => {
+  try {
+    const playlist = await hlsPlayback.publicPlaylist(String(params.key || ''));
+    return { statusCode: playlist ? 200 : 404,
+      headers: { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+      body: playlist || '' };
+  } catch (_) { return { statusCode: 503, body: '' }; }
 });
 
 router.get('/api/miot/status', async (req) => {
@@ -996,10 +1113,12 @@ router.post('/api/music/url', createMusicUrlHandler({
 }));
 
 async function onInit(): Promise<void> {
-  songloft.log.info('Audiobookshelf plugin v0.9.1 initialized');
+  songloft.log.info('Audiobookshelf plugin v0.9.2-beta.2 initialized');
   await registerToMiot();
 }
 async function onDeinit(): Promise<void> {
+  try { await hlsPlayback.exclusive(async () => hlsPlayback.close((await getConfig(false)).serverUrl)); }
+  catch (_) { songloft.log.warn('停用时连续流会话未清理，请重新启用后清理或在 Audiobookshelf 中结束会话'); }
   try {
     if (songloft.comm && typeof songloft.comm.call === 'function') {
       await songloft.comm.call('miot', 'unregister-search-provider', {});
@@ -1008,6 +1127,10 @@ async function onDeinit(): Promise<void> {
   songloft.log.info('Audiobookshelf plugin deinitialized');
 }
 async function onHTTPRequest(req: HTTPRequest): Promise<HTTPResponse> {
+  if (req.method.toUpperCase() === 'HEAD' && req.path.startsWith('/speaker-stream/')) {
+    const response = await router.handle({ ...req, method: 'GET' });
+    return { ...response, body: '' };
+  }
   return router.handle(req);
 }
 

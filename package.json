@@ -1,8 +1,9 @@
 {
   "name": "audiobookshelf",
-  "version": "0.9.1",
+  "version": "0.9.2-beta.2",
   "private": true,
   "scripts": {
+    "test": "node scripts/test-cover-loading.cjs && node scripts/test-hls.cjs && node scripts/test-ui.cjs",
     "build": "songloft-plugin build",
     "validate": "songloft-plugin validate"
   },

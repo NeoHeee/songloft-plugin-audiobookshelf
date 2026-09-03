@@ -6,9 +6,11 @@
 
 ## 下载
 
-当前版本：**v0.9.1**
+当前预览版：**v0.9.2-beta.2**（章节连续播放仍需音箱实测）
 
-[下载 ABS书库插件 v0.9.1](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.9.1/audiobookshelf.jsplugin.zip)
+[下载 ABS书库插件 v0.9.2-beta.2](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.9.2-beta.2/audiobookshelf.jsplugin.zip)
+
+新增默认关闭的音箱连续流开关，可从所选章节／当前集播放到结尾，也可从整书开头播放；无需导入 Songloft。章节起播按分片对齐，可能提前几秒。参见 [测试说明](TESTING-HLS.md) 和 [版本说明](RELEASE-NOTES.md)。
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
