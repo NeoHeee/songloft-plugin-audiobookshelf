@@ -1037,6 +1037,41 @@ router.post('/api/miot/play', async (req) => {
   } catch (error) { return safeError(error); }
 });
 
+router.post('/api/import/:id/remove', async (_req, params) => {
+  try {
+    const itemId = String(params.id || '');
+    const records = await getSyncRecords();
+    const record = records[itemId];
+    if (!record) return jsonResponse({ ok: true, removedSongs: 0, removedPlaylist: false, alreadyClean: true, complete: true });
+    let removedPlaylist = false;
+    let playlistId = record.playlistId;
+    if (playlistId) {
+      const playlist = await songloft.playlists.getById(playlistId);
+      if (!playlist) playlistId = undefined;
+      else {
+        try { await songloft.playlists.delete(playlistId); playlistId = undefined; removedPlaylist = true; }
+        catch (_) {}
+      }
+    }
+    let removedSongs = 0;
+    let missingSongs = 0;
+    const remainingSongIds: number[] = [];
+    for (const id of [...new Set(record.songIds.map(Number).filter(Number.isInteger))]) {
+      const song = await songloft.songs.getById(id);
+      if (!song) { missingSongs += 1; continue; }
+      try { await songloft.songs.delete(id); removedSongs += 1; }
+      catch (_) { remainingSongIds.push(id); }
+    }
+    const failedSongs = remainingSongIds.length;
+    const failedPlaylist = Boolean(playlistId);
+    if (!failedSongs && !failedPlaylist) delete records[itemId];
+    else records[itemId] = { ...record, songIds: remainingSongIds, playlistId };
+    await songloft.persistentStorage.set(SYNC_KEY, records);
+    return jsonResponse({ ok: true, removedSongs, missingSongs, removedPlaylist, failedSongs, failedPlaylist,
+      complete: !failedSongs && !failedPlaylist });
+  } catch (error) { return safeError(error); }
+});
+
 router.post('/api/miot/control', async (req) => {
   try {
     return await hlsPlayback.exclusive(async () => {
@@ -1113,7 +1148,7 @@ router.post('/api/music/url', createMusicUrlHandler({
 }));
 
 async function onInit(): Promise<void> {
-  songloft.log.info('Audiobookshelf plugin v0.9.2-beta.2 initialized');
+  songloft.log.info('Audiobookshelf plugin v0.9.2-beta.3 initialized');
   await registerToMiot();
 }
 async function onDeinit(): Promise<void> {

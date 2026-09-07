@@ -151,6 +151,7 @@ async function main() {
   // Exercise actual main.ts routes without network, Songloft imports or device writes.
   const handlers = new Map(), storage = new Map(), calls = [];
   let failMiot = false, testItem = null;
+  const librarySongs = new Map(), libraryPlaylists = new Map(), failDeleteSongs = new Set();
   const config = { serverUrl: 'http://abs', apiKey: 'test-key', authMode: 'api-key', speakerHlsEnabled: false };
   storage.set('abs_config', config);
   const sandbox = { exports: {}, URL, Uint8Array, Date, setTimeout, clearTimeout,
@@ -164,8 +165,16 @@ async function main() {
       persistentStorage: { get: async key => storage.get(key), set: async (key, value) => storage.set(key, value) },
       plugin: { getHostUrl: async () => 'http://songloft', getToken: async () => 'host-secret' },
       log: { warn() {}, info() {} },
-      songs: new Proxy({}, { get: () => { throw Error('must not import songs'); } }),
-      playlists: new Proxy({}, { get: () => { throw Error('must not import playlists'); } })
+      songs: {
+        getById: async id => librarySongs.get(id) || null,
+        delete: async id => { if (failDeleteSongs.has(id)) throw Error('delete failed'); librarySongs.delete(id); },
+        create: async () => { throw Error('must not import songs'); }
+      },
+      playlists: {
+        getById: async id => libraryPlaylists.get(id) || null,
+        delete: async id => { libraryPlaylists.delete(id); },
+        create: async () => { throw Error('must not import playlists'); }
+      }
     },
     fetch: async (url, init = {}) => {
       calls.push({ url, init });
@@ -248,6 +257,23 @@ async function main() {
     assert.equal((await push()).data.mode, 'single');
     assert.equal(storage.get('abs_speaker_hls_session_v1'), null);
     assert.equal((await route('/api/miot/hls/close')).status, 200);
+  });
+  await test('import cleanup removes tracked songs and an already-missing playlist', async () => {
+    librarySongs.set(11, { id: 11 }); librarySongs.set(12, { id: 12 });
+    storage.set('abs_sync_records_v1', { book: { itemId: 'book', playlistId: 99, songIds: [11, 12], fileKeys: [], fingerprint: '', syncedAt: '' } });
+    const result = (await handlers.get('POST /api/import/:id/remove')({}, { id: 'book' })).data;
+    assert.equal(result.complete, true); assert.equal(result.removedSongs, 2); assert.equal(result.removedPlaylist, false);
+    assert.equal(librarySongs.size, 0); assert.ok(!storage.get('abs_sync_records_v1').book);
+  });
+  await test('partial import cleanup preserves only failed entries for retry', async () => {
+    librarySongs.set(21, { id: 21 }); librarySongs.set(22, { id: 22 }); libraryPlaylists.set(7, { id: 7 }); failDeleteSongs.add(22);
+    storage.set('abs_sync_records_v1', { book: { itemId: 'book', playlistId: 7, songIds: [21, 22, 23], fileKeys: [], fingerprint: '', syncedAt: '' } });
+    const first = (await handlers.get('POST /api/import/:id/remove')({}, { id: 'book' })).data;
+    assert.equal(first.complete, false); assert.equal(first.removedSongs, 1); assert.equal(first.missingSongs, 1); assert.equal(first.removedPlaylist, true);
+    assert.deepEqual(Array.from(storage.get('abs_sync_records_v1').book.songIds), [22]);
+    failDeleteSongs.clear();
+    const retry = (await handlers.get('POST /api/import/:id/remove')({}, { id: 'book' })).data;
+    assert.equal(retry.complete, true); assert.equal(retry.removedSongs, 1); assert.ok(!storage.get('abs_sync_records_v1').book);
   });
   console.log(`${assertions} HLS regression scenarios passed.`);
 }

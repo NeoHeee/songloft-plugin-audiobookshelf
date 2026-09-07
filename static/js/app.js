@@ -366,7 +366,7 @@ function renderLibrary() {
       ? `已同步 ${book.sync.songCount} 个音频 · ${book.sync.hasPlaylist ? '已建歌单' : '仅歌曲'}`
       : '尚未同步';
     const importActions = book.sync
-      ? `<button class="secondary" data-sync="${escapeHtml(book.id)}">检查更新</button>${book.sync.hasPlaylist ? '' : `<button class="primary" data-import="${escapeHtml(book.id)}">创建歌单</button>`}`
+      ? `<button class="secondary" data-sync="${escapeHtml(book.id)}">检查更新</button>${book.sync.hasPlaylist ? '' : `<button class="primary" data-import="${escapeHtml(book.id)}">创建歌单</button>`}<button class="danger-button" data-remove-import="${escapeHtml(book.id)}">删除导入内容</button>`
       : `<button class="primary" data-import="${escapeHtml(book.id)}">导入</button>`;
     return `<article class="book-card">
       <img class="book-cover" data-cover-url="${escapeHtml(book.coverUrl)}" alt="${escapeHtml(book.title)}封面" loading="lazy">
@@ -374,7 +374,7 @@ function renderLibrary() {
       <p class="book-meta">${formatTime(book.duration)} · ${escapeHtml(progress)}</p>
       <div class="progress-track" title="收听进度 ${percent}%"><span style="width:${percent}%"></span></div>
       <div class="book-actions"><span class="sync-badge ${book.sync ? '' : 'muted'}">${escapeHtml(sync)}</span></div>
-      <div class="book-action-buttons ${book.sync && !book.sync.hasPlaylist ? 'has-three-actions' : ''}"><button class="secondary play-button" data-play="${escapeHtml(book.id)}">播放</button>${importActions}</div></div>
+      <div class="book-action-buttons ${book.sync ? 'has-cleanup' : ''}"><button class="secondary play-button" data-play="${escapeHtml(book.id)}">播放</button>${importActions}</div></div>
     </article>`;
   }).join('') : libraryLoaded && libraryTotal === 0
     ? '<div class="empty-state"><strong>这个书库暂时没有有声书</strong><p>在 Audiobookshelf 中添加内容后重新加载。</p></div>'
@@ -440,6 +440,34 @@ async function importBook(id, button, createPlaylist = true) {
   } finally {
     if (button.isConnected) setBusy(button, false);
   }
+}
+
+async function removeImportedBook(id, button) {
+  const book = booksState.find(item => String(item.id) === String(id));
+  const count = Number(book?.sync?.songCount || 0);
+  const message = `将从 Songloft 曲库删除插件为《${book?.title || '这本书'}》导入的 ${count} 首歌曲${book?.sync?.hasPlaylist ? '及关联歌单' : ''}，歌曲在其他歌单中的引用也会随之移除，并清除同步状态。不会删除 Audiobookshelf 原书和播放历史；此操作无法撤销。`;
+  if (!await confirmAction('删除已导入内容', message, `删除 ${count} 首歌曲`)) return;
+  try {
+    setBusy(button, true, '正在删除…');
+    const result = await apiPost(`/api/import/${encodeURIComponent(id)}/remove`, {});
+    if (result.complete) {
+      if (book) book.sync = null;
+      renderLibrary();
+      $('syncSummary').className = 'sync-summary success';
+      $('syncSummary').innerHTML = `<strong>${escapeHtml(book?.title || '有声书')}清理完成</strong><span>已删除 ${Number(result.removedSongs || 0)} 首歌曲${Number(result.missingSongs || 0) ? `，${Number(result.missingSongs)} 首此前已不存在` : ''}${result.removedPlaylist ? '及关联歌单' : ''}，ABS 原书和播放历史未受影响</span>`;
+      status(`已删除 ${Number(result.removedSongs || 0)} 首导入歌曲${result.removedPlaylist ? '及歌单' : ''}`);
+    } else {
+      if (book) book.sync = { ...book.sync, songCount: Number(result.failedSongs || 0), hasPlaylist: Boolean(result.failedPlaylist) };
+      renderLibrary();
+      const detail = `仍有 ${Number(result.failedSongs || 0)} 首歌曲${result.failedPlaylist ? '和 1 个歌单' : ''}未能删除，可稍后重试。`;
+      $('syncSummary').className = 'sync-summary warning';
+      $('syncSummary').innerHTML = `<strong>${escapeHtml(book?.title || '有声书')}未完全清理</strong><span>${escapeHtml(detail)}</span>`;
+      status(detail, false);
+    }
+  } catch (e) {
+    status(e.message, false);
+    showActionNotice('删除导入内容失败', e.message, () => removeImportedBook(id, button));
+  } finally { if (button.isConnected) setBusy(button, false); }
 }
 
 function updatePlayer() {
@@ -925,6 +953,7 @@ $('books').addEventListener('click', e => {
     const book = booksState.find(item => String(item.id) === String(button.dataset.sync));
     importBook(button.dataset.sync, button, Boolean(book?.sync?.hasPlaylist));
   }
+  if (button.dataset.removeImport) removeImportedBook(button.dataset.removeImport, button);
 });
 $('actionDismiss').addEventListener('click', dismissActionNotice);
 $('actionRetry').addEventListener('click', async () => {

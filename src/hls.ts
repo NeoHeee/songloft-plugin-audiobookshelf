@@ -130,7 +130,7 @@ export class HlsPlayback {
       method: 'POST', body: JSON.stringify({
         forceTranscode: true, forceDirectPlay: false, supportedMimeTypes: [],
         mediaPlayer: 'abs-speaker-hls-experimental',
-        deviceInfo: { deviceId: `songloft-abs-hls:${accountId}:${deviceId}`, clientName: 'ABS Speaker HLS', clientVersion: '0.9.2-beta.2' }
+        deviceInfo: { deviceId: `songloft-abs-hls:${accountId}:${deviceId}`, clientName: 'ABS Speaker HLS', clientVersion: '0.9.2-beta.3' }
       })
     });
     const id = String(response?.id || '');

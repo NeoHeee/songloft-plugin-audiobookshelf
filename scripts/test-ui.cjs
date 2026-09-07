@@ -14,6 +14,8 @@ assert.match(html, /id="speakerHlsStartMode"><option value="selected">/);
 assert.equal((js.match(/speakerHlsStartMode: \$\('speakerHlsStartMode'\).value/g) || []).length, 3);
 assert.equal((js.match(/speakerHlsHostUrl: \$\('speakerHlsHostUrl'\).value/g) || []).length, 3);
 assert.ok(js.includes('...result.history'), 'use actual stream position for history');
+assert.ok(js.includes('data-remove-import='), 'synced books expose cleanup action');
+assert.ok(js.includes("'/api/import/'") || js.includes('`/api/import/${encodeURIComponent(id)}/remove`'), 'cleanup route is called');
 const plugin = JSON.parse(fs.readFileSync(path.join(__dirname, '../plugin.json'), 'utf8'));
 assert.deepEqual(plugin.publicPaths, ['/speaker-stream/']);
 console.log('UI IDs, default toggle and cleanup visibility checks passed.');
