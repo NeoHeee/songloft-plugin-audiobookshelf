@@ -6,13 +6,15 @@
 
 ## 下载
 
-当前预览版：**v0.9.2-beta.2**（章节连续播放仍需音箱实测）
+当前预览版：**v0.9.2-beta.3**（导入内容清理与章节连续播放预览）
 
-[下载 ABS书库插件 v0.9.2-beta.2](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.9.2-beta.2/audiobookshelf.jsplugin.zip)
+[下载 ABS书库插件 v0.9.2-beta.3](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/download/v0.9.2-beta.3/audiobookshelf.jsplugin.zip)
 
 新增默认关闭的“音箱连续流播放（实验性）”，支持从当前章节／当前集连续播放到书籍结尾，也可从整本书开头播放，无需导入 Songloft。章节起播按分片对齐，可能提前几秒；从中间起播时音箱须能访问 Songloft 和 ABS。设置中可填写音箱可访问的 Songloft 局域网地址。
 
-同时修复 ABS 页面封面代理加载，新增连续流会话状态与清理入口。详情与限制见 [版本说明](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/tag/v0.9.2-beta.2)。
+同时修复 ABS 页面封面代理加载，新增连续流会话状态与清理入口。详情与限制见 [版本说明](https://github.com/NeoHeee/songloft-plugin-audiobookshelf/releases/tag/v0.9.2-beta.3)。
+
+已同步书籍支持“删除导入内容”，可清理插件记录的 Songloft 歌曲、残留歌单和同步状态，不影响 Audiobookshelf 原书与播放历史；部分删除失败时可再次重试。
 
 > 本插件需配合支持外部搜索源的新版 [Songloft MIoT 插件](https://github.com/songloft-org/songloft-plugin-miot) 使用。
 
